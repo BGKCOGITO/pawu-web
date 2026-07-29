@@ -1,0 +1,43 @@
+{
+  "name": "pawu-web",
+  "version": "1.0.0-rc1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:v703:dry": "node --env-file=.env.local scripts/import-hospitals-v703.mjs data/hospitals-public-10588.csv --dry-run",
+    "db:v703:import": "node --env-file=.env.local scripts/import-hospitals-v703.mjs data/hospitals-public-10588.csv",
+    "db:v703:geocode": "node --env-file=.env.local scripts/geocode-hospitals-v703.mjs --all",
+    "db:v703:geocode:test": "node --env-file=.env.local scripts/geocode-hospitals-v703.mjs 10",
+    "db:v703:geocode:retry": "node --env-file=.env.local scripts/geocode-hospitals-v703.mjs --all --retry-failed",
+    "typecheck": "tsc --noEmit",
+    "verify:env": "node --env-file=.env.local scripts/verify-env.mjs",
+    "verify": "npm run verify:env && npm run typecheck && npm run lint && npm run build",
+    "release:static": "node scripts/release-static-audit.mjs",
+    "release:quick": "npm run verify:env && npm run release:static && npm run typecheck",
+    "release:check": "node scripts/release-check.mjs",
+    "release:lint": "node scripts/release-lint.mjs"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.3",
+    "@supabase/supabase-js": "^2.110.7",
+    "next": "16.2.10",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-naver-maps": "^0.2.2",
+    "solapi": "^6.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "supabase": "^2.109.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
