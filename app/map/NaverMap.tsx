@@ -51,10 +51,13 @@ export default function NaverMap() {
   const mapElement=useRef<HTMLDivElement|null>(null);
   const mapRef=useRef<any>(null);
   const markersRef=useRef<any[]>([]);
+  const currentLocationMarkerRef=useRef<any|null>(null);
+  const currentLocationCircleRef=useRef<any|null>(null);
   const [hospitals,setHospitals]=useState<Hospital[]>([]);
   const [query,setQuery]=useState("");
   const [filters,setFilters]=useState<string[]>([]);
   const [location,setLocation]=useState<Location|null>(null);
+  const [locationAccuracy,setLocationAccuracy]=useState<number|null>(null);
   const [view,setView]=useState<ViewMode>("list");
   const [sort,setSort]=useState<SortMode>("distance");
   const [selectedId,setSelectedId]=useState<number|null>(null);
@@ -77,6 +80,7 @@ export default function NaverMap() {
       navigator.geolocation.getCurrentPosition(pos=>{
         if(!mounted)return;
         setLocation({latitude:pos.coords.latitude,longitude:pos.coords.longitude});
+        setLocationAccuracy(Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null);
         setMessage("현재 위치에서 가까운 순서로 정렬했어요.");
       },()=>setMessage("위치 권한이 없어 병원명 순으로 보여드려요."),{enableHighAccuracy:false,timeout:6000,maximumAge:300000});
     }
@@ -117,7 +121,47 @@ export default function NaverMap() {
       window.naver.maps.Event.addListener(marker,"click",()=>{setSelectedId(h.id);mapRef.current.panTo(new window.naver.maps.LatLng(h.latitude,h.longitude));});
       return marker;
     });
-  },[view,scriptLoaded,filtered,selectedId,location]);
+
+    if(location){
+      const position=new window.naver.maps.LatLng(location.latitude,location.longitude);
+      if(!currentLocationMarkerRef.current){
+        currentLocationMarkerRef.current=new window.naver.maps.Marker({
+          position,
+          map:mapRef.current,
+          zIndex:1000,
+          icon:{
+            content:`<div aria-label="현재 위치" style="position:relative;width:34px;height:34px;display:flex;align-items:center;justify-content:center"><span style="position:absolute;width:34px;height:34px;border-radius:999px;background:rgba(53,132,255,.20);animation:pawuLocationPulse 1.8s ease-out infinite"></span><span style="position:relative;width:18px;height:18px;border-radius:999px;background:#3584ff;border:4px solid #fff;box-shadow:0 3px 12px rgba(23,72,145,.35)"></span></div><style>@keyframes pawuLocationPulse{0%{transform:scale(.7);opacity:1}100%{transform:scale(1.5);opacity:0}}</style>`,
+            size:new window.naver.maps.Size(34,34),
+            anchor:new window.naver.maps.Point(17,17),
+          },
+        });
+      }else{
+        currentLocationMarkerRef.current.setMap(mapRef.current);
+        currentLocationMarkerRef.current.setPosition(position);
+      }
+
+      if(locationAccuracy&&locationAccuracy>0){
+        if(!currentLocationCircleRef.current){
+          currentLocationCircleRef.current=new window.naver.maps.Circle({
+            map:mapRef.current,
+            center:position,
+            radius:Math.min(Math.max(locationAccuracy,20),500),
+            strokeColor:"#3584ff",
+            strokeOpacity:.55,
+            strokeWeight:1,
+            fillColor:"#6aa6ff",
+            fillOpacity:.12,
+            clickable:false,
+            zIndex:10,
+          });
+        }else{
+          currentLocationCircleRef.current.setMap(mapRef.current);
+          currentLocationCircleRef.current.setCenter(position);
+          currentLocationCircleRef.current.setRadius(Math.min(Math.max(locationAccuracy,20),500));
+        }
+      }
+    }
+  },[view,scriptLoaded,filtered,selectedId,location,locationAccuracy]);
 
   useEffect(()=>{
     if(view!=="map"||!mapRef.current)return;
@@ -137,9 +181,15 @@ export default function NaverMap() {
     setMessage("현재 위치를 찾고 있어요.");
     navigator.geolocation.getCurrentPosition(pos=>{
       const next={latitude:pos.coords.latitude,longitude:pos.coords.longitude};
-      setLocation(next);setSort("distance");setMessage("현재 위치에서 가까운 순서로 정렬했어요.");
+      setLocation(next);
+      setLocationAccuracy(Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null);
+      setSort("distance");setMessage("파란 점이 현재 위치예요. 가까운 병원부터 정렬했어요.");
       if(mapRef.current&&window.naver){mapRef.current.setCenter(new window.naver.maps.LatLng(next.latitude,next.longitude));mapRef.current.setZoom(13);}
-    },()=>setMessage("위치 권한을 허용해 주세요."));
+    },error=>{
+      if(error.code===error.PERMISSION_DENIED)setMessage("위치 권한이 꺼져 있습니다. 브라우저 설정에서 허용해 주세요.");
+      else if(error.code===error.TIMEOUT)setMessage("현재 위치 확인 시간이 초과됐습니다. 다시 눌러 주세요.");
+      else setMessage("현재 위치를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
   }
   function toggle(code:string){setFilters(current=>current.includes(code)?current.filter(v=>v!==code):[...current,code]);}
   function selectHospital(hospital:Hospital){setSelectedId(hospital.id);if(view==="map"&&mapRef.current&&window.naver){mapRef.current.setCenter(new window.naver.maps.LatLng(hospital.latitude,hospital.longitude));mapRef.current.setZoom(15);}}
@@ -220,6 +270,7 @@ export default function NaverMap() {
         className={view === "map" ? "relative h-[calc(100dvh-250px)] min-h-[520px] w-full overflow-hidden bg-[#dfe8e3]" : "hidden"}
       >
         <div ref={mapElement} className="absolute inset-0 h-full w-full" />
+        {location&&<div className="pointer-events-none absolute left-3 top-3 z-20 flex items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 py-2 text-xs font-black text-[#183d35] shadow-lg backdrop-blur"><span className="h-3 w-3 rounded-full border-[3px] border-white bg-[#3584ff] shadow-[0_1px_5px_rgba(53,132,255,.55)]"/>현재 위치</div>}
         {!clientId&&<div className="absolute inset-0 flex items-center justify-center p-6"><div className="rounded-3xl bg-white p-6 text-center shadow-xl"><strong>지도 설정이 필요합니다.</strong><p className="mt-2 text-sm text-[#777]">네이버 지도 Client ID를 확인해 주세요.</p></div></div>}
       </section>
 
