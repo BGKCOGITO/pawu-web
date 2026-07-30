@@ -3,48 +3,64 @@ import HomeRoleRedirect from "@/components/HomeRoleRedirect";
 import HomeCareSummary from "@/components/home/HomeCareSummary";
 import MyHospitalHomeCard from "@/components/guardian/MyHospitalHomeCard";
 
-const quick = [
-  { href: "/emergency", tag: "EMERGENCY", title: "응급·야간 병원", text: "가까운 병원에 바로 전화하고 길찾기", tone: "coral", icon: "!" },
-  { href: "/map", tag: "NEARBY", title: "지금 갈 수 있는 병원", text: "영업 중인 병원을 지도에서 바로 찾기", tone: "mint", icon: "⌖" },
-  { href: "/my-reservations", tag: "SCHEDULE", title: "예약 확인", text: "대기·승인·완료 일정을 한눈에", tone: "coral", icon: "▦" },
-  { href: "/health-notebook", tag: "RECORD", title: "건강 타임라인", text: "진료와 처방 기록을 이어서 보기", tone: "violet", icon: "✦" },
-  { href: "/health-insights", tag: "AI", title: "AI 건강 요약", text: "우리 아이 기록의 흐름을 한눈에 정리", tone: "mint", icon: "◎" },
-  { href: "/medications", tag: "MEDICATION", title: "복약 관리", text: "오늘 먹을 약과 복용 시간을 확인하기", tone: "mint", icon: "💊" },
-  { href: "/inpatient-updates", tag: "INPATIENT", title: "입원 경과", text: "병원에서 공유한 식사·투약·회복 소식 확인", tone: "coral", icon: "♡" },
-  { href: "/my-hospitals", tag: "FAVORITE", title: "즐겨찾는 병원", text: "자주 가는 병원을 빠르게 예약하고 연락하기", tone: "violet", icon: "★" },
+function Icon({ name }: { name: string }) {
+  const paths: Record<string, React.ReactNode> = {
+    search: <><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></>,
+    record: <><path d="M8 3h8l3 3v15H5V3h3Z"/><path d="M14 3v5h5M8 13h8M8 17h6"/></>,
+    pill: <><path d="m8.5 15.5 7-7a4.24 4.24 0 0 1 6 6l-7 7a4.24 4.24 0 0 1-6-6Z"/><path d="m12 12 6 6"/></>,
+    spark: <><path d="m12 3 1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3Z"/><path d="m18.5 14 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></>,
+    hospital: <><rect x="4" y="4" width="16" height="17" rx="3"/><path d="M9 21v-5h6v5M12 8v5M9.5 10.5h5"/></>,
+  };
+  return <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
+}
+
+const shortcuts = [
+  { href: "/health-notebook", title: "건강기록", desc: "진료·검사 기록", icon: "record" },
+  { href: "/medications", title: "처방·복약", desc: "복용 일정 관리", icon: "pill" },
+  { href: "/health-insights", title: "AI 건강요약", desc: "기록 흐름 요약", icon: "spark" },
+  { href: "/inpatient-updates", title: "입원 경과", desc: "병원 공유 소식", icon: "hospital" },
 ];
 
 export default function Home() {
   return (
     <>
       <HomeRoleRedirect />
-      <main className="pawu-home">
-      <section className="home-hero">
-        <div className="hero-copy">
-          <span className="eyebrow">PAWU CARE FLOW</span>
-          <h1>우리 아이의 오늘을<br/><em>한눈에 이어보세요.</em></h1>
-          <p>병원 검색부터 예약, 건강기록까지 흩어지지 않게 연결합니다.</p>
-          <div className="hero-actions"><Link href="/map" className="primary-action">병원 찾기 <span>↗</span></Link><Link href="/pets" className="round-action">우리 아이 등록</Link></div>
-        </div>
-        <div className="hero-orbit" aria-hidden="true"><div className="orbit-core">PAWU</div><span className="orbit-dot one">+</span><span className="orbit-dot two">♡</span><span className="orbit-dot three">•</span></div>
-      </section>
+      <main className="v9-home">
+        <section className="v9-welcome">
+          <div className="v9-welcome-copy">
+            <span className="v9-kicker">PAWU CARE</span>
+            <h1>우리 아이의 오늘을<br/><strong>편안하게 이어보세요.</strong></h1>
+            <p>병원 검색부터 예약, 건강기록과 복약관리까지 한곳에서 연결합니다.</p>
+          </div>
+          <div className="v9-pet-visual" aria-hidden="true">
+            <div className="v9-pet-ring"></div>
+            <img src="/pawu-v9-03-symbol.svg" alt="" />
+          </div>
+          <div className="v9-main-actions">
+            <Link href="/map" className="v9-action v9-action-primary"><span className="v9-action-icon"><Icon name="search" /></span><span><b>병원 찾기</b><small>가까운 병원 검색</small></span><i>→</i></Link>
+            <Link href="/my-reservations" className="v9-action v9-action-secondary"><span className="v9-action-icon"><Icon name="calendar" /></span><span><b>예약 확인</b><small>내 예약 일정 보기</small></span><i>→</i></Link>
+          </div>
+        </section>
 
-      <section className="home-status-strip">
-        <div><small>TODAY</small><strong>오늘도 함께</strong></div><span></span><div><small>CARE</small><strong>기록은 차곡차곡</strong></div><span></span><div><small>NEARBY</small><strong>가까운 병원부터</strong></div>
-      </section>
+        <section className="v9-content-section">
+          <div className="v9-section-head"><div><span>MY PET</span><h2>우리 아이</h2></div><Link href="/pets">전체 보기 →</Link></div>
+          <MyHospitalHomeCard />
+        </section>
 
-      <HomeCareSummary />
-      <MyHospitalHomeCard />
+        <section className="v9-content-section v9-shortcut-section">
+          <div className="v9-section-head"><div><span>QUICK MENU</span><h2>자주 사용하는 메뉴</h2></div></div>
+          <div className="v9-shortcuts">
+            {shortcuts.map((item) => <Link key={item.href} href={item.href} className="v9-shortcut"><span><Icon name={item.icon} /></span><b>{item.title}</b><small>{item.desc}</small></Link>)}
+          </div>
+        </section>
 
-      <section className="home-section">
-        <div className="section-heading"><div><span>QUICK ROUTES</span><h2>필요한 곳으로 바로</h2></div><Link href="/account">전체 메뉴 ↗</Link></div>
-        <div className="route-grid">{quick.map((item) => <Link href={item.href} key={item.href} className={`route-card ${item.tone}`}><div className="route-top"><span>{item.tag}</span><b>{item.icon}</b></div><h3>{item.title}</h3><p>{item.text}</p><i>열기 →</i></Link>)}</div>
-      </section>
+        <HomeCareSummary />
 
-      <section className="home-section home-pet-panel">
-        <div><span className="eyebrow">MY FAMILY</span><h2>아이를 등록하면<br/>PAWU가 더 정확해져요.</h2><p>예약할 때마다 정보를 다시 입력하지 않고 건강 기록도 아이별로 관리할 수 있어요.</p><Link href="/pets/new" className="dark-link">첫 아이 등록하기 →</Link></div>
-        <div className="pet-constellation"><span>DOG</span><span>CAT</span><span>ETC</span></div>
-      </section>
+        <section className="v9-register-card">
+          <div><span>PAWU FAMILY</span><h2>아직 아이를 등록하지 않았나요?</h2><p>아이를 등록하면 예약과 건강기록을 더 편리하게 관리할 수 있어요.</p></div>
+          <Link href="/pets/new">아이 등록하기 →</Link>
+        </section>
       </main>
     </>
   );

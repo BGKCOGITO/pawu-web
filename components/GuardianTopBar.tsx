@@ -6,30 +6,24 @@ import { usePathname } from "next/navigation";
 import HomeAuthNav from "./HomeAuthNav";
 
 const labels: Record<string, string> = {
-  "/": "오늘의 PAWU",
-  "/dashboard": "오늘의 PAWU",
-  "/pets": "우리 아이들",
-  "/my-reservations": "예약 관리",
-  "/health-notebook": "건강 기록",
+  "/pets": "우리 아이",
+  "/my-reservations": "예약",
+  "/health-notebook": "건강기록",
   "/account": "내 정보",
 };
 
 export default function GuardianTopBar() {
   const pathname = usePathname();
   if (pathname.startsWith("/map")) return null;
-
-  const title = Object.entries(labels).find(([path]) => pathname === path || (path !== "/" && pathname.startsWith(path)))?.[1] ?? "PAWU";
+  const title = Object.entries(labels).find(([path]) => pathname.startsWith(path))?.[1];
 
   return (
-    <header className="guardian-topbar">
-      <Link href="/" className="guardian-brand" aria-label="PAWU 홈">
-        <span className="guardian-brand-mark"><Image src="/pawu-symbol.png" alt="" width={34} height={34} /></span>
-        <span>
-          <strong>PAWU</strong>
-          <small>Always with us</small>
-        </span>
+    <header className="guardian-topbar v9-topbar">
+      <Link href="/" className="guardian-brand v9-brand" aria-label="PAWU 홈">
+        <span className="guardian-brand-mark"><Image src="/pawu-v9-03-symbol.svg" alt="" width={36} height={36} priority /></span>
+        <span><strong>PAWU</strong><small>Always with us</small></span>
       </Link>
-      <div className="guardian-title-pill">{title}</div>
+      {title ? <div className="v9-page-title">{title}</div> : <div />}
       <HomeAuthNav />
     </header>
   );

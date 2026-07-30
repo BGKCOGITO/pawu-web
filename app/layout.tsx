@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "PAWU", statusBarStyle: "default" },
   icons: {
     icon: [
-      { url: "/icons/pawu-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/pawu-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icons/pawu-v903-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/pawu-v903-512.png", sizes: "512x512", type: "image/png" },
     ],
-    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    apple: [{ url: "/icons/pawu-v903-apple.png", sizes: "180x180", type: "image/png" }],
   },
 };
 

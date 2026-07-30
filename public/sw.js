@@ -1,6 +1,6 @@
-const CACHE_NAME = "pawu-shell-v1.0.0-rc2";
+const CACHE_NAME = "pawu-shell-v9.0.3";
 const OFFLINE_URL = "/offline";
-const APP_SHELL = [OFFLINE_URL, "/icons/pawu-192.png", "/icons/pawu-512.png"];
+const APP_SHELL = [OFFLINE_URL, "/icons/pawu-v903-192.png", "/icons/pawu-v903-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
