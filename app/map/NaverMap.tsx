@@ -168,12 +168,50 @@ export default function NaverMap() {
         {loading?<div className="rounded-3xl bg-white p-10 text-center text-sm font-bold text-[#7a847f]">병원을 찾는 중이에요.</div>:filtered.length===0?<div className="rounded-3xl bg-white p-10 text-center text-sm font-bold text-[#7a847f]">조건에 맞는 병원이 없습니다.</div>:
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">{filtered.slice(0,300).map(h=>{
           const distance=location?distanceKm(location,h):null;
-          return <article key={h.id} className="rounded-[24px] border border-[#ebe6da] bg-[#fffdf8] p-5 shadow-[0_8px_25px_rgba(30,58,50,.06)]">
-            <button type="button" onClick={()=>selectHospital(h)} className="w-full text-left">
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap gap-1.5">{h.source_type==="pawu_partner"&&<span className="rounded-full bg-[#e2f2eb] px-2 py-1 text-[9px] font-black text-[#23725e]">PAWU 인증</span>}{h.reservation_enabled&&<span className="rounded-full bg-[#fff0ec] px-2 py-1 text-[9px] font-black text-[#db5a49]">예약 가능</span>}</div><h2 className="mt-3 truncate text-lg font-black">{h.name}</h2><p className="mt-1 line-clamp-2 text-xs leading-5 text-[#77817c]">{h.address}</p></div>{distance!==null&&<strong className="shrink-0 text-sm text-[#ff725e]">{distance.toFixed(1)}km</strong>}</div>
-              <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-bold text-[#6f7974]">{h.night_care_available&&<span>야간</span>}{h.emergency_care_available&&<span>응급</span>}{h.parking_available&&<span>주차</span>}</div>
+          return <article key={h.id} className="overflow-hidden rounded-[26px] border border-[#e8e2d6] bg-[#fffdf8] shadow-[0_10px_30px_rgba(30,58,50,.08)]">
+            <button type="button" onClick={()=>selectHospital(h)} className="block w-full p-5 text-left active:bg-[#faf7f0]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap gap-1.5">
+                    {h.source_type==="pawu_partner"&&<span className="rounded-full bg-[#e2f2eb] px-2.5 py-1 text-[10px] font-black text-[#23725e]">PAWU 인증</span>}
+                    {h.reservation_enabled&&<span className="rounded-full bg-[#fff0ec] px-2.5 py-1 text-[10px] font-black text-[#db5a49]">온라인 예약</span>}
+                  </div>
+                  <h2 className="mt-3 break-keep text-[18px] font-black leading-6 text-[#183d35]">{h.name}</h2>
+                </div>
+                {distance!==null&&<strong className="shrink-0 rounded-full bg-[#fff4ef] px-2.5 py-1 text-xs font-black text-[#ef6c57]">{distance.toFixed(1)}km</strong>}
+              </div>
+
+              <div className="mt-4 rounded-2xl bg-[#f7f5ef] p-3.5">
+                <div className="flex items-start gap-2.5">
+                  <span aria-hidden="true" className="mt-0.5 text-sm">⌖</span>
+                  <p className="break-keep text-[13px] font-bold leading-5 text-[#68736d]">{h.address}</p>
+                </div>
+                <div className="mt-2 flex items-center gap-2.5">
+                  <span aria-hidden="true" className="text-sm">☎</span>
+                  <p className="text-[13px] font-bold text-[#68736d]">{h.phone || "전화번호 정보 없음"}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex min-h-7 flex-wrap gap-2">
+                {h.night_care_available&&<span className="rounded-full border border-[#dfe8e3] bg-white px-3 py-1.5 text-[11px] font-black text-[#365f54]">야간 진료</span>}
+                {h.emergency_care_available&&<span className="rounded-full border border-[#f4d9d1] bg-[#fff8f5] px-3 py-1.5 text-[11px] font-black text-[#c85b49]">응급 진료</span>}
+                {h.parking_available&&<span className="rounded-full border border-[#e2ddd1] bg-white px-3 py-1.5 text-[11px] font-black text-[#5f6964]">주차 가능</span>}
+                {!h.night_care_available&&!h.emergency_care_available&&!h.parking_available&&<span className="text-[11px] font-bold text-[#9aa19d]">등록된 편의 정보가 없습니다.</span>}
+              </div>
             </button>
-            <div className="mt-4 grid grid-cols-3 gap-2"><Link href={`/hospital/${h.id}`} className="rounded-xl bg-[#183d35] px-2 py-3 text-center text-xs font-black text-white">상세</Link>{h.phone?<a href={`tel:${h.phone}`} className="rounded-xl bg-[#edf2ef] px-2 py-3 text-center text-xs font-black">전화</a>:<span className="rounded-xl bg-[#efede7] px-2 py-3 text-center text-xs font-bold text-[#aaa]">전화 없음</span>}<button onClick={()=>setSelectedId(h.id)} className="rounded-xl bg-[#fff0ec] px-2 py-3 text-xs font-black text-[#d95d4c]">길찾기</button></div>
+
+            <div className="border-t border-[#ece7dc] bg-white p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <Link href={`/hospital/${h.id}`} className="flex min-h-12 items-center justify-center rounded-2xl bg-[#183d35] px-3 text-sm font-black text-white">병원 상세</Link>
+                {h.reservation_enabled
+                  ? <Link href={`/hospital/${h.id}`} className="flex min-h-12 items-center justify-center rounded-2xl bg-[#ff725e] px-3 text-sm font-black text-white">예약하기</Link>
+                  : <span className="flex min-h-12 items-center justify-center rounded-2xl bg-[#efede7] px-3 text-sm font-bold text-[#9a9f9c]">예약 미지원</span>}
+                {h.phone
+                  ? <a href={`tel:${h.phone}`} className="flex min-h-12 items-center justify-center rounded-2xl bg-[#edf2ef] px-3 text-sm font-black text-[#183d35]">전화하기</a>
+                  : <span className="flex min-h-12 items-center justify-center rounded-2xl bg-[#efede7] px-3 text-sm font-bold text-[#aaa]">전화 없음</span>}
+                <button type="button" onClick={()=>setSelectedId(h.id)} className="min-h-12 rounded-2xl border border-[#f1d8d1] bg-[#fff5f1] px-3 text-sm font-black text-[#d95d4c]">길찾기</button>
+              </div>
+            </div>
           </article>})}</div>}
       </section>
 
