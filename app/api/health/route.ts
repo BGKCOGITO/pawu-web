@@ -13,7 +13,7 @@ export async function GET() {
   return NextResponse.json(
     {
       status: snapshot.status === "error" ? "degraded" : "ok",
-      version: "1.0.0-rc1",
+      version: "1.0.0-rc2",
       checks: {
         environment: environment?.status === "error" ? "error" : "ok",
         database,
