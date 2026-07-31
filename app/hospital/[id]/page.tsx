@@ -55,9 +55,9 @@ function statusLabel(hospital: Hospital) {
 }
 
 function availabilityLabel(value: boolean | null) {
-  if (value === true) return "가능";
+  if (value === true) return "이용 가능";
   if (value === false) return "미지원";
-  return "확인 필요";
+  return "병원 문의";
 }
 
 export default async function HospitalDetailPage({ params }: Props) {
@@ -109,80 +109,66 @@ export default async function HospitalDetailPage({ params }: Props) {
   const primaryAddress =
     hospital.road_address || hospital.address || hospital.lot_address || "주소 정보 없음";
 
-  const careTags = [
-    hospital.parking_available ? "주차 가능" : null,
-    hospital.night_care_available ? "야간 진료" : null,
-    hospital.emergency_care_available ? "응급 진료" : null,
-    ...services.slice(0, 4),
-    ...animals.slice(0, 3).map((animal) => `${animal} 진료`),
-  ].filter((item): item is string => Boolean(item));
-
   return (
-    <main className="min-h-screen bg-[#f7f5ef] pb-52 text-[#143b34] sm:pb-36">
-      <div className="mx-auto max-w-5xl px-4 pt-4 sm:px-7 sm:pt-7">
-        <header className="flex items-center justify-between gap-3">
-          <Link
-            href="/map"
-            className="inline-flex min-h-11 items-center rounded-full border border-[#dbe3df] bg-white px-4 text-sm font-black shadow-sm transition active:scale-95"
-          >
-            ← 병원 찾기
-          </Link>
-          <MyHospitalButton
-            hospitalId={Number(hospital.id)}
-            hospitalName={hospital.name}
-          />
-        </header>
-
-        <section className="mt-4 overflow-hidden rounded-[30px] border border-[#dfe5e1] bg-white shadow-[0_20px_65px_rgba(20,59,52,0.10)] sm:mt-6 sm:rounded-[38px]">
-          <div className="relative">
-            {hospital.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={hospital.image_url}
-                alt={`${hospital.name} 대표 이미지`}
-                className="h-56 w-full object-cover sm:h-[390px]"
-              />
-            ) : (
-              <div className="flex h-52 items-center justify-center bg-[radial-gradient(circle_at_75%_25%,#d4eee5_0,#eef3ef_40%,#17453b_120%)] sm:h-80">
-                <div className="rounded-[30px] border border-white/70 bg-white/60 px-9 py-8 text-center shadow-sm backdrop-blur">
-                  <p className="text-3xl font-black tracking-[0.24em] text-[#173f37]">PAWU</p>
-                  <p className="mt-2 text-xs font-bold text-[#60756f]">병원 대표 이미지 준비 중</p>
-                </div>
+    <main className="min-h-screen bg-[#f4f5f1] pb-52 text-[#153b34] sm:pb-36">
+      <div className="relative mx-auto max-w-6xl overflow-hidden bg-white shadow-[0_30px_90px_rgba(20,59,52,0.08)] sm:my-7 sm:rounded-[38px]">
+        <section className="relative min-h-[430px] overflow-hidden bg-[#173f37] sm:min-h-[540px]">
+          {hospital.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={hospital.image_url}
+              alt={`${hospital.name} 대표 이미지`}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_12%,rgba(109,212,176,0.55),transparent_28%),radial-gradient(circle_at_8%_70%,rgba(255,114,94,0.28),transparent_34%),linear-gradient(135deg,#214f45,#102f2a)]">
+              <div className="absolute -right-14 top-24 h-64 w-64 rounded-full border border-white/10" />
+              <div className="absolute -right-3 top-36 h-44 w-44 rounded-full border border-white/10" />
+              <div className="absolute left-7 top-28 text-white/10">
+                <p className="text-[82px] font-black leading-none tracking-[-0.08em] sm:text-[140px]">P</p>
               </div>
-            )}
-            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/5 to-[#102f2a]/95" />
+
+          <div className="relative z-10 flex items-center justify-between px-4 pt-[max(18px,env(safe-area-inset-top))] sm:px-8 sm:pt-8">
+            <Link
+              href="/map"
+              aria-label="병원 찾기로 돌아가기"
+              className="inline-flex h-12 items-center gap-2 rounded-full border border-white/25 bg-black/20 px-4 text-sm font-black text-white backdrop-blur-xl transition active:scale-95"
+            >
+              <span className="text-lg">‹</span>
+              병원 찾기
+            </Link>
+            <div className="rounded-full bg-white/95 p-1 shadow-lg backdrop-blur-xl">
+              <MyHospitalButton hospitalId={Number(hospital.id)} hospitalName={hospital.name} />
+            </div>
           </div>
 
-          <div className="p-5 sm:p-9">
+          <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-8 sm:px-10 sm:pb-11">
             <div className="flex flex-wrap gap-2">
-              {isPartner && <Badge tone="green">PAWU 가입 병원</Badge>}
-              <Badge tone={hospital.is_active ? "blue" : "red"}>
+              <HeroBadge tone={isPartner ? "partner" : "public"}>
+                {isPartner ? "병원 직접 관리" : "공공데이터 정보"}
+              </HeroBadge>
+              <HeroBadge tone={hospital.is_active ? "open" : "closed"}>
                 {statusLabel(hospital)}
-              </Badge>
-              <Badge tone={canReserve ? "dark" : "gray"}>
+              </HeroBadge>
+              <HeroBadge tone={canReserve ? "reserve" : "neutral"}>
                 {canReserve ? "온라인 예약 가능" : "전화 문의"}
-              </Badge>
+              </HeroBadge>
             </div>
-
-            <h1 className="mt-4 break-keep text-[30px] font-black leading-tight tracking-[-0.045em] sm:text-4xl">
+            <h1 className="mt-4 max-w-3xl break-keep text-[34px] font-black leading-[1.12] tracking-[-0.055em] text-white sm:text-5xl">
               {hospital.name}
             </h1>
-            <p className="mt-3 break-words text-sm leading-6 text-[#60736e] sm:text-base">
+            <p className="mt-3 max-w-2xl break-words text-sm leading-6 text-white/78 sm:text-base">
               {primaryAddress}
             </p>
-            {hospital.phone && (
-              <p className="mt-1 text-sm font-bold text-[#60736e]">{hospital.phone}</p>
-            )}
+          </div>
+        </section>
 
-            {careTags.length > 0 && (
-              <div className="mt-5 flex flex-wrap gap-2">
-                {careTags.map((item) => (
-                  <Tag key={item}>{item}</Tag>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-6">
+        <section className="relative z-20 -mt-1 rounded-t-[34px] bg-[#f4f5f1] px-4 pb-10 pt-5 sm:rounded-t-[46px] sm:px-8 sm:pt-8">
+          <div className="mx-auto max-w-5xl">
+            <section className="rounded-[28px] bg-white p-4 shadow-[0_16px_45px_rgba(20,59,52,0.09)] sm:p-6">
               <HospitalDetailActions
                 name={hospital.name}
                 address={primaryAddress}
@@ -190,141 +176,137 @@ export default async function HospitalDetailPage({ params }: Props) {
                 latitude={hospital.latitude}
                 longitude={hospital.longitude}
               />
+              {canReserve ? (
+                <Link
+                  href={`/hospital/${hospital.id}/reserve`}
+                  className="mt-4 flex min-h-16 w-full items-center justify-between rounded-[22px] bg-[#ff725e] px-5 text-white shadow-[0_14px_30px_rgba(255,114,94,0.32)] transition active:scale-[0.985]"
+                >
+                  <span>
+                    <span className="block text-xs font-bold text-white/75">PAWU 간편예약</span>
+                    <span className="mt-0.5 block text-lg font-black">진료 예약하기</span>
+                  </span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/18 text-xl">→</span>
+                </Link>
+              ) : hospital.is_active ? (
+                <div className="mt-4">
+                  <PawuAdoptionRequestButton hospitalId={Number(hospital.id)} />
+                </div>
+              ) : null}
+            </section>
+
+            <section className="mt-5 grid grid-cols-3 gap-2.5 sm:gap-4">
+              <FeatureTile icon="P" title="주차" value={availabilityLabel(hospital.parking_available)} active={hospital.parking_available === true} />
+              <FeatureTile icon="N" title="야간 진료" value={availabilityLabel(hospital.night_care_available)} active={hospital.night_care_available === true} />
+              <FeatureTile icon="E" title="응급 진료" value={availabilityLabel(hospital.emergency_care_available)} active={hospital.emergency_care_available === true} />
+            </section>
+
+            <div className="mt-5 grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
+              <div className="space-y-5">
+                <ContentCard number="01" title="병원 소개">
+                  <p className="whitespace-pre-wrap text-[15px] leading-7 text-[#61736e]">
+                    {hospital.description ||
+                      "병원에서 직접 등록한 소개가 아직 없습니다. 현재는 확인된 기본 병원정보를 제공하고 있습니다."}
+                  </p>
+                </ContentCard>
+
+                <ContentCard number="02" title="진료 안내">
+                  <InfoCollection title="진료 과목">
+                    {services.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {services.map((item) => <Pill key={item}>{item}</Pill>)}
+                      </div>
+                    ) : (
+                      <MutedText>등록된 진료 과목이 없습니다.</MutedText>
+                    )}
+                  </InfoCollection>
+                  <div className="my-6 h-px bg-[#edf0ed]" />
+                  <InfoCollection title="진료 가능 동물">
+                    {animals.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {animals.map((item) => <Pill key={item}>{item}</Pill>)}
+                      </div>
+                    ) : (
+                      <MutedText>등록된 진료 동물 정보가 없습니다.</MutedText>
+                    )}
+                  </InfoCollection>
+                </ContentCard>
+
+                <ContentCard number="03" title="위치">
+                  <div className="overflow-hidden rounded-[24px] bg-[#153b34] p-5 text-white sm:p-6">
+                    <div className="flex items-start justify-between gap-5">
+                      <div>
+                        <p className="text-xs font-black tracking-[0.18em] text-white/55">LOCATION</p>
+                        <p className="mt-3 break-words text-lg font-black leading-7">{primaryAddress}</p>
+                      </div>
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/12 text-xl">⌖</span>
+                    </div>
+                    <div className="mt-6 grid gap-2 text-sm text-white/72">
+                      {hospital.road_address && <AddressLine label="도로명" value={hospital.road_address} />}
+                      {hospital.lot_address && <AddressLine label="지번" value={hospital.lot_address} />}
+                    </div>
+                    <div className="mt-5">
+                      <HospitalDetailActions
+                        name={hospital.name}
+                        address={primaryAddress}
+                        phone={null}
+                        latitude={hospital.latitude}
+                        longitude={hospital.longitude}
+                      />
+                    </div>
+                  </div>
+                </ContentCard>
+              </div>
+
+              <aside className="space-y-5">
+                <SideCard title="방문 전 확인">
+                  <dl className="space-y-4">
+                    <InfoRow label="영업 상태" value={statusLabel(hospital)} />
+                    <InfoRow label="온라인 예약" value={canReserve ? "가능" : "전화 문의"} />
+                    <InfoRow label="전화번호" value={hospital.phone ?? "정보 없음"} />
+                    <InfoRow label="정보 갱신일" value={formatDate(hospital.public_data_updated_at)} />
+                  </dl>
+                  <p className="mt-5 rounded-2xl bg-[#f3f5f2] p-4 text-xs leading-5 text-[#6f807b]">
+                    실제 진료시간과 당일 접수 가능 여부는 방문 전에 병원으로 확인해 주세요.
+                  </p>
+                </SideCard>
+
+                <SideCard title="정보 신뢰 안내">
+                  <div className={`rounded-[22px] border p-4 ${isPartner ? "border-[#bfe4d7] bg-[#edf9f4]" : "border-[#dce5ec] bg-[#f1f6f9]"}`}>
+                    <p className={`text-sm font-black ${isPartner ? "text-[#17604e]" : "text-[#416477]"}`}>
+                      {isPartner ? "병원에서 직접 관리 중" : "공공데이터 기반 정보"}
+                    </p>
+                    <p className={`mt-2 text-xs leading-5 ${isPartner ? "text-[#4f786c]" : "text-[#67808e]"}`}>
+                      {isPartner
+                        ? "병원이 PAWU에 가입해 소개와 예약 정보를 직접 관리하고 있습니다."
+                        : "공개된 행정정보를 기반으로 제공되며 실제 운영정보와 다를 수 있습니다."}
+                    </p>
+                  </div>
+                </SideCard>
+              </aside>
             </div>
 
-            {canReserve && (
-              <Link
-                href={`/hospital/${hospital.id}/reserve`}
-                className="mt-3 flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#173f37] px-5 text-base font-black text-white shadow-lg transition active:scale-[0.98]"
-              >
-                예약하기
-              </Link>
-            )}
-
-            {!hospital.reservation_enabled && hospital.is_active && (
-              <div className="mt-3">
-                <PawuAdoptionRequestButton hospitalId={Number(hospital.id)} />
-              </div>
-            )}
+            <div className="mt-5">
+              <ContentCard number="04" title="방문 후기">
+                <div className="mb-5 rounded-[20px] bg-[#f5f6f3] px-4 py-3 text-sm leading-6 text-[#687a75]">
+                  PAWU는 병원을 점수로 평가하지 않습니다. 실제 방문 보호자의 경험을 글로 확인할 수 있습니다.
+                </div>
+                <HospitalVisitReviews hospitalId={Number(hospital.id)} />
+              </ContentCard>
+            </div>
           </div>
         </section>
-
-        <section className="mt-5 grid grid-cols-3 gap-2 sm:gap-4">
-          <QuickInfo
-            icon="P"
-            label="주차"
-            value={availabilityLabel(hospital.parking_available)}
-          />
-          <QuickInfo
-            icon="N"
-            label="야간 진료"
-            value={availabilityLabel(hospital.night_care_available)}
-          />
-          <QuickInfo
-            icon="E"
-            label="응급 진료"
-            value={availabilityLabel(hospital.emergency_care_available)}
-          />
-        </section>
-
-        <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-5">
-            <Section title="병원 소개" eyebrow="ABOUT">
-              <p className="whitespace-pre-wrap text-sm leading-7 text-[#5f716c] sm:text-base">
-                {hospital.description ||
-                  "병원에서 직접 등록한 소개가 아직 없습니다. 기본 병원정보를 먼저 제공하고 있습니다."}
-              </p>
-            </Section>
-
-            <Section title="진료 정보" eyebrow="CARE">
-              <div className="space-y-5">
-                <InfoGroup title="진료 과목">
-                  {services.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {services.map((item) => (
-                        <Tag key={item}>{item}</Tag>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyText>등록된 진료 과목이 없습니다.</EmptyText>
-                  )}
-                </InfoGroup>
-
-                <InfoGroup title="진료 가능 동물">
-                  {animals.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {animals.map((item) => (
-                        <Tag key={item}>{item}</Tag>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyText>등록된 진료 동물 정보가 없습니다.</EmptyText>
-                  )}
-                </InfoGroup>
-              </div>
-            </Section>
-
-            <Section title="위치 및 주소" eyebrow="LOCATION">
-              <dl className="divide-y divide-[#e8ece9] overflow-hidden rounded-2xl bg-[#f6f7f3] px-5">
-                <InfoBlock label="도로명주소" value={hospital.road_address ?? "정보 없음"} />
-                <InfoBlock label="지번주소" value={hospital.lot_address ?? "정보 없음"} />
-              </dl>
-              <div className="mt-4 rounded-2xl border border-[#dfe6e2] bg-[#eef4f1] p-4 text-sm leading-6 text-[#516963]">
-                정확한 진료시간과 접수 가능 여부는 방문 전에 병원으로 확인해 주세요.
-              </div>
-            </Section>
-          </div>
-
-          <aside className="space-y-5">
-            <Section title="이용 안내" eyebrow="VISIT INFO">
-              <dl className="space-y-4">
-                <InfoRow label="영업 상태" value={statusLabel(hospital)} />
-                <InfoRow
-                  label="예약"
-                  value={canReserve ? "온라인 예약 가능" : "전화 문의"}
-                />
-                <InfoRow label="전화" value={hospital.phone ?? "정보 없음"} />
-                <InfoRow
-                  label="정보 업데이트"
-                  value={formatDate(hospital.public_data_updated_at)}
-                />
-              </dl>
-            </Section>
-
-            <Section title="정보 출처" eyebrow="PAWU GUIDE">
-              <div
-                className={`rounded-2xl border px-4 py-4 text-sm leading-6 ${
-                  isPartner
-                    ? "border-[#bfe4d7] bg-[#edf9f4] text-[#17604e]"
-                    : "border-[#dce5ec] bg-[#f1f6f9] text-[#416477]"
-                }`}
-              >
-                <strong className="block">
-                  {isPartner ? "PAWU 가입 병원" : "공공데이터 기반 병원"}
-                </strong>
-                {isPartner
-                  ? "병원이 PAWU에 가입해 직접 정보를 관리하고 있습니다."
-                  : "공개된 행정정보를 기반으로 제공됩니다. 실제 운영 여부는 방문 전에 확인해 주세요."}
-              </div>
-            </Section>
-          </aside>
-        </div>
-
-        <div className="mt-5">
-          <HospitalVisitReviews hospitalId={Number(hospital.id)} />
-        </div>
       </div>
 
       {canReserve && (
-        <div className="fixed inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom))] z-40 px-3 sm:bottom-5 sm:px-6">
-          <div className="mx-auto flex max-w-xl items-center gap-3 rounded-[24px] border border-[#dfe5e1] bg-white/95 p-3 shadow-[0_18px_60px_rgba(20,59,52,0.24)] backdrop-blur-xl">
-            <div className="min-w-0 flex-1 px-2">
-              <p className="truncate text-xs font-bold text-[#71807c]">{hospital.name}</p>
-              <p className="mt-0.5 text-sm font-black text-[#143b34]">온라인 예약 가능</p>
+        <div className="fixed inset-x-0 bottom-[calc(84px+env(safe-area-inset-bottom))] z-40 px-3 sm:bottom-5 sm:px-6">
+          <div className="mx-auto flex max-w-xl items-center gap-3 rounded-[25px] border border-white/60 bg-[#153b34]/96 p-3 pl-5 shadow-[0_20px_60px_rgba(20,59,52,0.32)] backdrop-blur-xl">
+            <div className="min-w-0 flex-1 text-white">
+              <p className="truncate text-xs font-bold text-white/60">{hospital.name}</p>
+              <p className="mt-1 text-sm font-black">온라인 예약 가능</p>
             </div>
             <Link
               href={`/hospital/${hospital.id}/reserve`}
-              className="shrink-0 rounded-2xl bg-[#ff725e] px-7 py-4 text-sm font-black text-white shadow-lg transition active:scale-95"
+              className="shrink-0 rounded-[18px] bg-[#ff725e] px-7 py-4 text-sm font-black text-white shadow-lg transition active:scale-95"
             >
               예약하기
             </Link>
@@ -335,93 +317,64 @@ export default async function HospitalDetailPage({ params }: Props) {
   );
 }
 
-function Badge({
-  children,
-  tone,
-}: {
-  children: ReactNode;
-  tone: "green" | "blue" | "red" | "dark" | "gray";
-}) {
-  const tones = {
-    green: "bg-[#e2f5ee] text-[#17604e]",
-    blue: "bg-[#e8f1fb] text-[#34678c]",
-    red: "bg-[#fff0ed] text-[#c74f3f]",
-    dark: "bg-[#173f37] text-white",
-    gray: "bg-neutral-100 text-neutral-500",
+function HeroBadge({ children, tone }: { children: ReactNode; tone: "partner" | "public" | "open" | "closed" | "reserve" | "neutral" }) {
+  const styles = {
+    partner: "border-[#8ee1c3]/40 bg-[#3dbb8d]/25 text-[#c9ffec]",
+    public: "border-white/20 bg-white/10 text-white/80",
+    open: "border-[#9ee8d0]/35 bg-[#2aa879]/25 text-[#c9ffec]",
+    closed: "border-[#ffb8ae]/35 bg-[#ff725e]/20 text-[#ffd5cf]",
+    reserve: "border-white/25 bg-white text-[#173f37]",
+    neutral: "border-white/20 bg-black/15 text-white/72",
   };
-  return (
-    <span className={`rounded-full px-3 py-1.5 text-xs font-black ${tones[tone]}`}>
-      {children}
-    </span>
-  );
+  return <span className={`rounded-full border px-3 py-1.5 text-xs font-black backdrop-blur-xl ${styles[tone]}`}>{children}</span>;
 }
 
-function QuickInfo({
-  icon,
-  label,
-  value,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-}) {
+function FeatureTile({ icon, title, value, active }: { icon: string; title: string; value: string; active: boolean }) {
   return (
-    <div className="rounded-[20px] border border-[#dfe5e1] bg-white px-2 py-4 text-center shadow-sm sm:rounded-[26px] sm:p-5">
-      <span className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-[#edf5f1] text-xs font-black text-[#17604e]">
-        {icon}
-      </span>
-      <p className="mt-2 text-[11px] font-bold text-[#81908b] sm:text-xs">{label}</p>
-      <p className="mt-1 break-keep text-sm font-black text-[#173f37] sm:text-base">{value}</p>
+    <div className={`rounded-[24px] border p-3 text-center shadow-sm sm:p-5 ${active ? "border-[#c5e6db] bg-[#ecf8f3]" : "border-[#e1e6e2] bg-white"}`}>
+      <span className={`mx-auto flex h-10 w-10 items-center justify-center rounded-2xl text-xs font-black ${active ? "bg-[#173f37] text-white" : "bg-[#f0f2ef] text-[#81908b]"}`}>{icon}</span>
+      <p className="mt-3 text-[11px] font-bold text-[#87958f] sm:text-xs">{title}</p>
+      <p className="mt-1 break-keep text-xs font-black text-[#294a43] sm:text-sm">{value}</p>
     </div>
   );
 }
 
-function Section({
-  title,
-  eyebrow,
-  children,
-}: {
-  title: string;
-  eyebrow: string;
-  children: ReactNode;
-}) {
+function ContentCard({ number, title, children }: { number: string; title: string; children: ReactNode }) {
   return (
-    <section className="rounded-[28px] border border-[#dfe5e1] bg-white p-5 shadow-sm sm:p-7">
-      <p className="text-[10px] font-black tracking-[0.2em] text-[#ff725e]">{eyebrow}</p>
-      <h2 className="mt-2 text-xl font-black tracking-[-0.025em]">{title}</h2>
+    <section className="rounded-[30px] border border-[#e0e5e1] bg-white p-5 shadow-[0_12px_38px_rgba(20,59,52,0.055)] sm:p-7">
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-black tracking-[0.18em] text-[#ff725e]">{number}</span>
+        <div className="h-px flex-1 bg-[#ecefec]" />
+      </div>
+      <h2 className="mt-4 text-[22px] font-black tracking-[-0.035em] text-[#153b34]">{title}</h2>
       <div className="mt-5">{children}</div>
     </section>
   );
 }
 
-function InfoGroup({ title, children }: { title: string; children: ReactNode }) {
+function SideCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div>
-      <h3 className="mb-3 text-sm font-black text-[#294a43]">{title}</h3>
-      {children}
-    </div>
+    <section className="rounded-[28px] border border-[#e0e5e1] bg-white p-5 shadow-sm sm:p-6">
+      <h2 className="text-lg font-black tracking-[-0.025em]">{title}</h2>
+      <div className="mt-5">{children}</div>
+    </section>
   );
 }
 
-function Tag({ children }: { children: ReactNode }) {
-  return (
-    <span className="rounded-full border border-[#dce5e1] bg-[#f7f9f6] px-3.5 py-2 text-sm font-bold text-[#34534c]">
-      {children}
-    </span>
-  );
+function InfoCollection({ title, children }: { title: string; children: ReactNode }) {
+  return <div><h3 className="mb-3 text-sm font-black text-[#294a43]">{title}</h3>{children}</div>;
 }
 
-function EmptyText({ children }: { children: ReactNode }) {
+function Pill({ children }: { children: ReactNode }) {
+  return <span className="rounded-full border border-[#dce5e1] bg-[#f7f9f6] px-3.5 py-2 text-sm font-bold text-[#34534c]">{children}</span>;
+}
+
+function MutedText({ children }: { children: ReactNode }) {
   return <p className="text-sm text-[#7a8985]">{children}</p>;
 }
 
-function InfoBlock({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="py-4">
-      <dt className="text-xs font-bold text-[#87958f]">{label}</dt>
-      <dd className="mt-1.5 break-words text-sm leading-6 text-[#294a43]">{value}</dd>
-    </div>
-  );
+function AddressLine({ label, value }: { label: string; value: string }) {
+  return <div className="grid grid-cols-[50px_1fr] gap-3"><span className="font-bold text-white/45">{label}</span><span className="break-words">{value}</span></div>;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
