@@ -24,7 +24,46 @@ function getSpeciesLabel(species: Pet["species"]) {
 function getGenderLabel(gender: Pet["gender"]) {
   if (gender === "male") return "수컷";
   if (gender === "female") return "암컷";
-  return "미입력";
+  return "성별 미입력";
+}
+
+function getAgeLabel(birthDate: string | null) {
+  if (!birthDate) return "나이 미입력";
+
+  const birth = new Date(`${birthDate}T00:00:00`);
+  const today = new Date();
+  let years = today.getFullYear() - birth.getFullYear();
+  let months = today.getMonth() - birth.getMonth();
+
+  if (today.getDate() < birth.getDate()) months -= 1;
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  if (years <= 0) return `${Math.max(months, 0)}개월`;
+  if (months === 0) return `${years}세`;
+  return `${years}세 ${months}개월`;
+}
+
+function PetSymbol({ species }: { species: Pet["species"] }) {
+  return (
+    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-[#e4f3ed] text-[#173c34] shadow-[inset_0_0_0_1px_rgba(23,60,52,0.05)]">
+      {species === "cat" ? (
+        <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M6.5 9.2 5 4.8l4.1 2.1A8.5 8.5 0 0 1 12 6.4c1 0 2 .2 2.9.5L19 4.8l-1.5 4.4a7 7 0 1 1-11 0Z" />
+          <path d="M9 13h.01M15 13h.01M10 16c1.2.8 2.8.8 4 0M8 15l-3 .8M16 15l3 .8" />
+        </svg>
+      ) : species === "dog" ? (
+        <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M8 7 5.2 4.8 4 9.5v3A8 8 0 0 0 12 20a8 8 0 0 0 8-7.5v-3l-1.2-4.7L16 7" />
+          <path d="M9 13h.01M15 13h.01M10 16c1.2.8 2.8.8 4 0" />
+        </svg>
+      ) : (
+        <span className="text-2xl font-black">P</span>
+      )}
+    </div>
+  );
 }
 
 export default function PetsPage() {
@@ -50,9 +89,7 @@ export default function PetsPage() {
 
       const { data, error } = await supabase
         .from("pets")
-        .select(
-          "id, name, species, breed, birth_date, gender, weight_kg, notes"
-        )
+        .select("id, name, species, breed, birth_date, gender, weight_kg, notes")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -69,19 +106,11 @@ export default function PetsPage() {
     loadPets();
   }, []);
 
-    async function handleDelete(pet: Pet) {
-    const shouldDelete = window.confirm(
-      `${pet.name}의 정보를 정말 삭제하시겠습니까?`
-    );
+  async function handleDelete(pet: Pet) {
+    const shouldDelete = window.confirm(`${pet.name}의 정보를 정말 삭제하시겠습니까?`);
+    if (!shouldDelete) return;
 
-    if (!shouldDelete) {
-      return;
-    }
-
-    const { error } = await supabase
-      .from("pets")
-      .delete()
-      .eq("id", pet.id);
+    const { error } = await supabase.from("pets").delete().eq("id", pet.id);
 
     if (error) {
       console.error("반려동물 삭제 오류:", error);
@@ -89,52 +118,65 @@ export default function PetsPage() {
       return;
     }
 
-    setPets((currentPets) =>
-      currentPets.filter((currentPet) => currentPet.id !== pet.id)
-    );
-
+    setPets((currentPets) => currentPets.filter((currentPet) => currentPet.id !== pet.id));
     alert("반려동물 정보가 삭제되었습니다.");
   }
-  return (
-    <main className="mx-auto min-h-screen max-w-3xl px-6 py-10">
-      <div className="mb-8 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">내 반려동물</h1>
 
-          <p className="mt-2 text-gray-600">
-            예약에 사용할 반려동물을 등록하고 관리할 수 있습니다.
-          </p>
+  return (
+    <main className="mx-auto min-h-screen w-full max-w-3xl bg-[#fbfaf6] px-5 pb-36 pt-7 sm:px-7 sm:pt-10">
+      <section className="mb-7 rounded-[30px] bg-[#173c34] px-6 py-7 text-white shadow-[0_18px_40px_rgba(23,60,52,0.16)] sm:px-8">
+        <div className="flex items-start justify-between gap-5">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold tracking-[0.24em] text-[#a9d7c7]">MY PET</p>
+            <h1 className="mt-2 text-[34px] font-black leading-tight tracking-[-0.05em] sm:text-4xl">우리 아이</h1>
+            <p className="mt-3 max-w-md text-sm leading-6 text-white/75">
+              예약과 건강기록에 사용할 반려동물 정보를 한곳에서 관리하세요.
+            </p>
+          </div>
+
+          <Link
+            href="/pets/new"
+            className="flex h-12 shrink-0 items-center gap-2 rounded-2xl bg-[#bfe7d8] px-4 text-sm font-extrabold text-[#173c34] transition active:scale-[0.98]"
+          >
+            <span className="text-xl leading-none">+</span>
+            등록
+          </Link>
         </div>
 
-        <Link
-          href="/pets/new"
-          className="shrink-0 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
-        >
-          반려동물 등록
-        </Link>
-      </div>
+        {!isLoading && !errorMessage && (
+          <div className="mt-6 flex items-center gap-3 border-t border-white/12 pt-5">
+            <div className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90">
+              등록된 아이 {pets.length}마리
+            </div>
+            <p className="text-xs text-white/55">카드를 눌러 정보를 관리할 수 있어요.</p>
+          </div>
+        )}
+      </section>
 
       {isLoading && (
-        <section className="rounded-xl border px-6 py-16 text-center">
-          <p className="text-gray-600">반려동물을 불러오는 중입니다...</p>
+        <section className="rounded-[28px] border border-[#e5e4dc] bg-white px-6 py-16 text-center shadow-sm">
+          <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-[#dfeee8] border-t-[#173c34]" />
+          <p className="mt-4 text-sm font-medium text-[#69736f]">반려동물을 불러오는 중입니다.</p>
         </section>
       )}
 
       {!isLoading && errorMessage && (
-        <section className="rounded-xl border border-red-200 bg-red-50 px-6 py-6">
-          <p className="text-sm text-red-600">{errorMessage}</p>
+        <section className="rounded-[28px] border border-[#f3d5d3] bg-[#fff7f6] px-6 py-8 text-center">
+          <p className="text-sm font-semibold text-[#bc3a31]">{errorMessage}</p>
+          <Link href="/auth/login" className="mt-5 inline-flex rounded-xl bg-[#173c34] px-5 py-3 text-sm font-bold text-white">
+            로그인하기
+          </Link>
         </section>
       )}
 
       {!isLoading && !errorMessage && pets.length === 0 && (
-        <section className="rounded-xl border border-dashed border-gray-300 px-6 py-16 text-center">
-          <p className="text-lg font-medium">
-            등록된 반려동물이 없습니다.
-          </p>
-
-          <p className="mt-2 text-sm text-gray-500">
-            반려동물을 등록하면 예약할 때 바로 선택할 수 있습니다.
-          </p>
+        <section className="rounded-[30px] border border-dashed border-[#ccd7d2] bg-white px-7 py-16 text-center shadow-[0_14px_36px_rgba(32,61,53,0.06)]">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[28px] bg-[#e4f3ed] text-4xl">🐾</div>
+          <h2 className="mt-6 text-xl font-extrabold tracking-[-0.03em] text-[#173c34]">아직 등록된 아이가 없어요</h2>
+          <p className="mt-2 text-sm leading-6 text-[#74807c]">반려동물을 등록하면 예약과 건강기록을 더 편리하게 이용할 수 있습니다.</p>
+          <Link href="/pets/new" className="mt-7 inline-flex h-12 items-center rounded-2xl bg-[#173c34] px-6 text-sm font-bold text-white">
+            첫 반려동물 등록하기
+          </Link>
         </section>
       )}
 
@@ -143,61 +185,69 @@ export default function PetsPage() {
           {pets.map((pet) => (
             <article
               key={pet.id}
-              className="rounded-xl border border-gray-200 p-6 shadow-sm"
+              className="overflow-hidden rounded-[30px] border border-[#e5e5de] bg-white shadow-[0_14px_34px_rgba(31,58,51,0.07)]"
             >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <Link href={`/pets/${pet.id}`} className="text-xl font-bold text-[#153f34] hover:underline">{pet.name}</Link>
+              <div className="p-5 sm:p-6">
+                <div className="flex items-start gap-4">
+                  <PetSymbol species={pet.species} />
 
-                  <p className="mt-1 text-sm text-gray-600">
-                    {getSpeciesLabel(pet.species)}
-                    {pet.breed ? ` · ${pet.breed}` : ""}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="truncate text-2xl font-black tracking-[-0.04em] text-[#173c34]">{pet.name}</h2>
+                        <p className="mt-1 text-sm font-medium text-[#6e7975]">
+                          {getSpeciesLabel(pet.species)}
+                          {pet.breed ? ` · ${pet.breed}` : ""}
+                        </p>
+                      </div>
+
+                      <span className="shrink-0 rounded-full bg-[#f0f4f2] px-3 py-1.5 text-xs font-bold text-[#45635b]">
+                        {getGenderLabel(pet.gender)}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2.5">
+                      <div className="rounded-2xl bg-[#f7f7f3] px-3.5 py-3">
+                        <p className="text-[11px] font-bold text-[#8a9490]">나이</p>
+                        <p className="mt-1 text-sm font-extrabold text-[#203e36]">{getAgeLabel(pet.birth_date)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-[#f7f7f3] px-3.5 py-3">
+                        <p className="text-[11px] font-bold text-[#8a9490]">몸무게</p>
+                        <p className="mt-1 text-sm font-extrabold text-[#203e36]">
+                          {pet.weight_kg !== null ? `${pet.weight_kg}kg` : "미입력"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-                    {getGenderLabel(pet.gender)}
-                  </span>
-
-                  <Link href={`/pets/${pet.id}/edit`} className="rounded-lg border px-3 py-1.5 text-xs font-medium">수정</Link>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(pet)}
-                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
-                  >
-                    삭제
-                  </button>
-                </div>
+                {pet.notes && (
+                  <div className="mt-4 rounded-2xl border border-[#edf0ed] bg-[#fafbf9] px-4 py-3.5">
+                    <p className="text-[11px] font-bold text-[#84908b]">특이사항</p>
+                    <p className="mt-1.5 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-[#4d5d57]">{pet.notes}</p>
+                  </div>
+                )}
               </div>
 
-              <div className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
-                <div>
-                  <span className="text-gray-500">생년월일</span>
-                  <p className="mt-1 font-medium">
-                    {pet.birth_date ?? "미입력"}
-                  </p>
-                </div>
-
-                <div>
-                  <span className="text-gray-500">몸무게</span>
-                  <p className="mt-1 font-medium">
-                    {pet.weight_kg !== null
-                      ? `${pet.weight_kg}kg`
-                      : "미입력"}
-                  </p>
-                </div>
+              <div className="grid grid-cols-[1fr_auto] border-t border-[#ecece6] bg-[#fcfcfa]">
+                <Link
+                  href={`/pets/${pet.id}/edit`}
+                  className="flex min-h-14 items-center justify-center gap-2 text-sm font-extrabold text-[#173c34] transition active:bg-[#f0f5f2]"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" />
+                  </svg>
+                  정보 수정
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(pet)}
+                  className="flex min-h-14 items-center justify-center border-l border-[#ecece6] px-5 text-sm font-bold text-[#c34a42] transition active:bg-[#fff3f2]"
+                >
+                  삭제
+                </button>
               </div>
-
-              {pet.notes && (
-                <div className="mt-5 rounded-lg bg-gray-50 p-4">
-                  <span className="text-sm text-gray-500">특이사항</span>
-                  <p className="mt-1 whitespace-pre-wrap text-sm">
-                    {pet.notes}
-                  </p>
-                </div>
-              )}
             </article>
           ))}
         </section>
