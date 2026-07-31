@@ -53,6 +53,7 @@ export default function NaverMap() {
   const markersRef=useRef<any[]>([]);
   const currentLocationMarkerRef=useRef<any|null>(null);
   const currentLocationCircleRef=useRef<any|null>(null);
+  const cardRefs=useRef<Record<number,HTMLElement|null>>({});
   const [hospitals,setHospitals]=useState<Hospital[]>([]);
   const [query,setQuery]=useState("");
   const [filters,setFilters]=useState<string[]>([]);
@@ -61,10 +62,20 @@ export default function NaverMap() {
   const [view,setView]=useState<ViewMode>("list");
   const [sort,setSort]=useState<SortMode>("distance");
   const [selectedId,setSelectedId]=useState<number|null>(null);
+  const [navigationOpen,setNavigationOpen]=useState(false);
   const [scriptLoaded,setScriptLoaded]=useState(false);
   const [loading,setLoading]=useState(true);
   const [message,setMessage]=useState("내 위치를 확인하면 가까운 병원부터 보여드려요.");
+  const [favorites,setFavorites]=useState<number[]>([]);
+  const [showFavoritesOnly,setShowFavoritesOnly]=useState(false);
   const clientId=process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID;
+
+  useEffect(()=>{
+    try {
+      const saved=window.localStorage.getItem("pawu:favourite-hospitals");
+      if(saved)setFavorites(JSON.parse(saved));
+    } catch {}
+  },[]);
 
   useEffect(()=>{
     let mounted=true;
@@ -90,7 +101,8 @@ export default function NaverMap() {
   const filtered=useMemo(()=>{
     const q=query.trim().toLowerCase();
     const rows=hospitals.filter(h=>{
-      if(q&&!`${h.name} ${h.address}`.toLowerCase().includes(q))return false;
+      if(q&&!`${h.name} ${h.address} ${h.phone??""}`.toLowerCase().includes(q))return false;
+      if(showFavoritesOnly&&!favorites.includes(h.id))return false;
       if(filters.includes("reservation")&&!h.reservation_enabled)return false;
       if(filters.includes("night")&&!h.night_care_available)return false;
       if(filters.includes("emergency")&&!h.emergency_care_available)return false;
@@ -102,7 +114,7 @@ export default function NaverMap() {
       if(sort==="distance"&&location)return distanceKm(location,a)-distanceKm(location,b);
       return a.name.localeCompare(b.name,"ko");
     });
-  },[hospitals,query,filters,sort,location]);
+  },[hospitals,query,filters,sort,location,showFavoritesOnly,favorites]);
 
   const selected=useMemo(()=>filtered.find(h=>h.id===selectedId)??hospitals.find(h=>h.id===selectedId)??null,[filtered,hospitals,selectedId]);
 
@@ -192,7 +204,21 @@ export default function NaverMap() {
     },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
   }
   function toggle(code:string){setFilters(current=>current.includes(code)?current.filter(v=>v!==code):[...current,code]);}
-  function selectHospital(hospital:Hospital){setSelectedId(hospital.id);if(view==="map"&&mapRef.current&&window.naver){mapRef.current.setCenter(new window.naver.maps.LatLng(hospital.latitude,hospital.longitude));mapRef.current.setZoom(15);}}
+  function toggleFavorite(id:number){
+    setFavorites(current=>{
+      const next=current.includes(id)?current.filter(value=>value!==id):[...current,id];
+      try{window.localStorage.setItem("pawu:favourite-hospitals",JSON.stringify(next));}catch{}
+      return next;
+    });
+  }
+  function selectHospital(hospital:Hospital){
+    setSelectedId(hospital.id);
+    if(view==="map"&&mapRef.current&&window.naver){
+      mapRef.current.setCenter(new window.naver.maps.LatLng(hospital.latitude,hospital.longitude));
+      mapRef.current.setZoom(15);
+    }
+    if(view==="list")window.setTimeout(()=>cardRefs.current[hospital.id]?.scrollIntoView({behavior:"smooth",block:"center"}),40);
+  }
 
   return (
     <main className="min-h-[calc(100dvh-74px)] bg-[#f7f5ef] pb-28 text-[#183d35]">
@@ -207,6 +233,7 @@ export default function NaverMap() {
           <div className="mt-3 flex items-center rounded-2xl border border-[#e2ddd1] bg-white px-3"><span className="text-lg">⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="병원명 또는 지역 검색" className="h-12 min-w-0 flex-1 bg-transparent px-3 text-sm font-bold outline-none"/>{query&&<button onClick={()=>setQuery("")} className="text-xs font-black text-[#7c8581]">지우기</button>}</div>
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
             <button onClick={locate} className="shrink-0 rounded-full bg-[#e3f1eb] px-4 py-2 text-xs font-black text-[#23725e]">◎ 내 위치</button>
+            <button onClick={()=>setShowFavoritesOnly(value=>!value)} className={showFavoritesOnly?"shrink-0 rounded-full bg-[#183d35] px-4 py-2 text-xs font-black text-white":"shrink-0 rounded-full bg-white px-4 py-2 text-xs font-black shadow-sm"}>♥ 즐겨찾기</button>
             <button onClick={()=>setSort(sort==="distance"?"name":"distance")} className="shrink-0 rounded-full bg-white px-4 py-2 text-xs font-black shadow-sm">{sort==="distance"?"거리순 ▾":"이름순 ▾"}</button>
             {filterOptions.map(item=><button key={item.code} onClick={()=>toggle(item.code)} className={filters.includes(item.code)?"shrink-0 rounded-full bg-[#ff725e] px-4 py-2 text-xs font-black text-white":"shrink-0 rounded-full bg-white px-4 py-2 text-xs font-black shadow-sm"}>{item.label}</button>)}
           </div>
@@ -214,11 +241,13 @@ export default function NaverMap() {
       </header>
 
       <section className={view === "list" ? "mx-auto max-w-6xl px-4 py-5" : "hidden"}>
-        <div className="mb-4 flex items-end justify-between gap-3"><div><p className="text-sm font-black">가까운 병원부터</p><p className="mt-1 text-xs text-[#76807b]">{message}</p></div><span className="rounded-full bg-[#e8f3ed] px-3 py-1 text-xs font-black text-[#23725e]">{filtered.length.toLocaleString()}곳</span></div>
-        {loading?<div className="rounded-3xl bg-white p-10 text-center text-sm font-bold text-[#7a847f]">병원을 찾는 중이에요.</div>:filtered.length===0?<div className="rounded-3xl bg-white p-10 text-center text-sm font-bold text-[#7a847f]">조건에 맞는 병원이 없습니다.</div>:
+        <div className="mb-4 flex items-end justify-between gap-3"><div><p className="text-sm font-black">가까운 병원부터</p><p className="mt-1 max-w-[72vw] break-keep text-xs leading-5 text-[#76807b]">{message}</p></div><span className="shrink-0 rounded-full bg-[#e8f3ed] px-3 py-1 text-xs font-black text-[#23725e]">{filtered.length.toLocaleString()}곳</span></div>
+        {loading?<div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">{[0,1,2,3,4,5].map(item=><div key={item} className="h-72 animate-pulse rounded-[26px] border border-[#ebe6db] bg-white"><div className="m-5 h-5 w-2/3 rounded bg-[#eeeae2]"/><div className="mx-5 mt-5 h-24 rounded-2xl bg-[#f3f0e9]"/><div className="mx-5 mt-5 h-10 rounded-2xl bg-[#eeeae2]"/></div>)}</div>:filtered.length===0?<div className="rounded-3xl bg-white p-10 text-center text-sm font-bold text-[#7a847f]">조건에 맞는 병원이 없습니다.</div>:
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">{filtered.slice(0,300).map(h=>{
           const distance=location?distanceKm(location,h):null;
-          return <article key={h.id} className="overflow-hidden rounded-[26px] border border-[#e8e2d6] bg-[#fffdf8] shadow-[0_10px_30px_rgba(30,58,50,.08)]">
+          const isFavorite=favorites.includes(h.id);
+          const isSelected=selectedId===h.id;
+          return <article ref={element=>{cardRefs.current[h.id]=element}} key={h.id} className={isSelected?"overflow-hidden rounded-[26px] border-2 border-[#ff725e] bg-[#fffdf8] shadow-[0_16px_40px_rgba(255,114,94,.18)]":"overflow-hidden rounded-[26px] border border-[#e8e2d6] bg-[#fffdf8] shadow-[0_10px_30px_rgba(30,58,50,.08)]"}>
             <button type="button" onClick={()=>selectHospital(h)} className="block w-full p-5 text-left active:bg-[#faf7f0]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -228,7 +257,7 @@ export default function NaverMap() {
                   </div>
                   <h2 className="mt-3 break-keep text-[18px] font-black leading-6 text-[#183d35]">{h.name}</h2>
                 </div>
-                {distance!==null&&<strong className="shrink-0 rounded-full bg-[#fff4ef] px-2.5 py-1 text-xs font-black text-[#ef6c57]">{distance.toFixed(1)}km</strong>}
+                <div className="flex shrink-0 items-center gap-2">{distance!==null&&<strong className="rounded-full bg-[#fff4ef] px-2.5 py-1 text-xs font-black text-[#ef6c57]">{distance.toFixed(1)}km</strong>}<button type="button" aria-label={isFavorite?"즐겨찾기 해제":"즐겨찾기 추가"} onClick={event=>{event.stopPropagation();toggleFavorite(h.id)}} className={isFavorite?"flex h-9 w-9 items-center justify-center rounded-full bg-[#fff0ec] text-lg text-[#ff725e]":"flex h-9 w-9 items-center justify-center rounded-full bg-[#f0f2ef] text-lg text-[#8c9691]"}>{isFavorite?"♥":"♡"}</button></div>
               </div>
 
               <div className="mt-4 rounded-2xl bg-[#f7f5ef] p-3.5">
@@ -259,7 +288,7 @@ export default function NaverMap() {
                 {h.phone
                   ? <a href={`tel:${h.phone}`} className="flex min-h-12 items-center justify-center rounded-2xl bg-[#edf2ef] px-3 text-sm font-black text-[#183d35]">전화하기</a>
                   : <span className="flex min-h-12 items-center justify-center rounded-2xl bg-[#efede7] px-3 text-sm font-bold text-[#aaa]">전화 없음</span>}
-                <button type="button" onClick={()=>setSelectedId(h.id)} className="min-h-12 rounded-2xl border border-[#f1d8d1] bg-[#fff5f1] px-3 text-sm font-black text-[#d95d4c]">길찾기</button>
+                <button type="button" onClick={()=>{setSelectedId(h.id);setNavigationOpen(true)}} className="min-h-12 rounded-2xl border border-[#f1d8d1] bg-[#fff5f1] px-3 text-sm font-black text-[#d95d4c]">길찾기</button>
               </div>
             </div>
           </article>})}</div>}
@@ -272,12 +301,16 @@ export default function NaverMap() {
         <div ref={mapElement} className="absolute inset-0 h-full w-full" />
         {location&&<div className="pointer-events-none absolute left-3 top-3 z-20 flex items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 py-2 text-xs font-black text-[#183d35] shadow-lg backdrop-blur"><span className="h-3 w-3 rounded-full border-[3px] border-white bg-[#3584ff] shadow-[0_1px_5px_rgba(53,132,255,.55)]"/>현재 위치</div>}
         {!clientId&&<div className="absolute inset-0 flex items-center justify-center p-6"><div className="rounded-3xl bg-white p-6 text-center shadow-xl"><strong>지도 설정이 필요합니다.</strong><p className="mt-2 text-sm text-[#777]">네이버 지도 Client ID를 확인해 주세요.</p></div></div>}
+        {selected&&<div className="absolute inset-x-3 bottom-3 z-30 rounded-[24px] border border-white/80 bg-[#fffdf8]/95 p-4 shadow-2xl backdrop-blur-xl">
+          <div className="flex items-start gap-3"><button type="button" onClick={()=>toggleFavorite(selected.id)} className={favorites.includes(selected.id)?"flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fff0ec] text-xl text-[#ff725e]":"flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#edf1ed] text-xl text-[#7f8a85]"}>{favorites.includes(selected.id)?"♥":"♡"}</button><div className="min-w-0 flex-1"><h2 className="truncate text-base font-black">{selected.name}</h2><p className="mt-1 line-clamp-2 text-xs font-bold leading-5 text-[#747e79]">{selected.address}</p></div><button type="button" onClick={()=>setSelectedId(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eeeae1] font-black">×</button></div>
+          <div className="mt-3 grid grid-cols-3 gap-2"><Link href={`/hospital/${selected.id}`} className="flex min-h-11 items-center justify-center rounded-2xl bg-[#183d35] text-xs font-black text-white">상세</Link>{selected.phone?<a href={`tel:${selected.phone}`} className="flex min-h-11 items-center justify-center rounded-2xl bg-[#edf2ef] text-xs font-black">전화</a>:<span className="flex min-h-11 items-center justify-center rounded-2xl bg-[#efede7] text-xs font-bold text-[#aaa]">전화 없음</span>}<button type="button" onClick={()=>setNavigationOpen(true)} className="min-h-11 rounded-2xl bg-[#ff725e] text-xs font-black text-white">길찾기</button></div>
+        </div>}
       </section>
 
-      {selected&&(
-        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={()=>setSelectedId(null)}>
+      {selected&&navigationOpen&&(
+        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={()=>setNavigationOpen(false)}>
           <div className="w-full max-w-md rounded-[28px] bg-[#fffdf8] p-5 shadow-2xl" onClick={e=>e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black tracking-[.16em] text-[#ff725e]">NAVIGATION</p><h2 className="mt-2 text-xl font-black">{selected.name}</h2><p className="mt-2 text-sm leading-6 text-[#747e79]">{selected.address}</p></div><button onClick={()=>setSelectedId(null)} className="rounded-full bg-[#eeeae1] px-3 py-1.5 font-black">×</button></div>
+            <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black tracking-[.16em] text-[#ff725e]">NAVIGATION</p><h2 className="mt-2 text-xl font-black">{selected.name}</h2><p className="mt-2 text-sm leading-6 text-[#747e79]">{selected.address}</p></div><button onClick={()=>setNavigationOpen(false)} className="rounded-full bg-[#eeeae1] px-3 py-1.5 font-black">×</button></div>
             <p className="mt-5 text-xs font-black text-[#68736d]">사용할 지도를 선택하세요.</p>
             <div className="mt-3 grid grid-cols-2 gap-2">{Object.entries(navigationUrls(selected)).slice(0,3).map(([key,url])=><a key={key} href={url} target="_blank" rel="noreferrer" className="rounded-2xl border border-[#ddd8cc] bg-white px-4 py-4 text-center text-sm font-black">{key==="naver"?"네이버 지도":key==="kakao"?"카카오맵":"티맵"}</a>)}<Link href={`/hospital/${selected.id}`} className="rounded-2xl bg-[#183d35] px-4 py-4 text-center text-sm font-black text-white">병원 상세</Link></div>
           </div>
