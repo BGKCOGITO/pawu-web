@@ -122,7 +122,7 @@ export default function NaverMap() {
     if(view!=="map"||!scriptLoaded||!mapElement.current||!window.naver)return;
     if(!mapRef.current){
       const center=location??{latitude:37.5665,longitude:126.978};
-      mapRef.current=new window.naver.maps.Map(mapElement.current,{center:new window.naver.maps.LatLng(center.latitude,center.longitude),zoom:location?13:10,zoomControl:true});
+      mapRef.current=new window.naver.maps.Map(mapElement.current,{center:new window.naver.maps.LatLng(center.latitude,center.longitude),zoom:location?13:10,zoomControl:false});
     }
     markersRef.current.forEach(marker=>marker.setMap(null));
     markersRef.current=filtered.slice(0,300).map(h=>{
@@ -301,18 +301,53 @@ export default function NaverMap() {
         <div ref={mapElement} className="absolute inset-0 h-full w-full" />
         {location&&<div className="pointer-events-none absolute left-3 top-3 z-20 flex items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 py-2 text-xs font-black text-[#183d35] shadow-lg backdrop-blur"><span className="h-3 w-3 rounded-full border-[3px] border-white bg-[#3584ff] shadow-[0_1px_5px_rgba(53,132,255,.55)]"/>현재 위치</div>}
         {!clientId&&<div className="absolute inset-0 flex items-center justify-center p-6"><div className="rounded-3xl bg-white p-6 text-center shadow-xl"><strong>지도 설정이 필요합니다.</strong><p className="mt-2 text-sm text-[#777]">네이버 지도 Client ID를 확인해 주세요.</p></div></div>}
-        {selected&&<div className="absolute inset-x-3 bottom-3 z-30 rounded-[24px] border border-white/80 bg-[#fffdf8]/95 p-4 shadow-2xl backdrop-blur-xl">
+        {selected&&<div className="absolute inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-30 rounded-[24px] border border-white/80 bg-[#fffdf8]/95 p-4 shadow-2xl backdrop-blur-xl">
           <div className="flex items-start gap-3"><button type="button" onClick={()=>toggleFavorite(selected.id)} className={favorites.includes(selected.id)?"flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fff0ec] text-xl text-[#ff725e]":"flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#edf1ed] text-xl text-[#7f8a85]"}>{favorites.includes(selected.id)?"♥":"♡"}</button><div className="min-w-0 flex-1"><h2 className="truncate text-base font-black">{selected.name}</h2><p className="mt-1 line-clamp-2 text-xs font-bold leading-5 text-[#747e79]">{selected.address}</p></div><button type="button" onClick={()=>setSelectedId(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eeeae1] font-black">×</button></div>
           <div className="mt-3 grid grid-cols-3 gap-2"><Link href={`/hospital/${selected.id}`} className="flex min-h-11 items-center justify-center rounded-2xl bg-[#183d35] text-xs font-black text-white">상세</Link>{selected.phone?<a href={`tel:${selected.phone}`} className="flex min-h-11 items-center justify-center rounded-2xl bg-[#edf2ef] text-xs font-black">전화</a>:<span className="flex min-h-11 items-center justify-center rounded-2xl bg-[#efede7] text-xs font-bold text-[#aaa]">전화 없음</span>}<button type="button" onClick={()=>setNavigationOpen(true)} className="min-h-11 rounded-2xl bg-[#ff725e] text-xs font-black text-white">길찾기</button></div>
         </div>}
       </section>
 
       {selected&&navigationOpen&&(
-        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={()=>setNavigationOpen(false)}>
-          <div className="w-full max-w-md rounded-[28px] bg-[#fffdf8] p-5 shadow-2xl" onClick={e=>e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black tracking-[.16em] text-[#ff725e]">NAVIGATION</p><h2 className="mt-2 text-xl font-black">{selected.name}</h2><p className="mt-2 text-sm leading-6 text-[#747e79]">{selected.address}</p></div><button onClick={()=>setNavigationOpen(false)} className="rounded-full bg-[#eeeae1] px-3 py-1.5 font-black">×</button></div>
-            <p className="mt-5 text-xs font-black text-[#68736d]">사용할 지도를 선택하세요.</p>
-            <div className="mt-3 grid grid-cols-2 gap-2">{Object.entries(navigationUrls(selected)).slice(0,3).map(([key,url])=><a key={key} href={url} target="_blank" rel="noreferrer" className="rounded-2xl border border-[#ddd8cc] bg-white px-4 py-4 text-center text-sm font-black">{key==="naver"?"네이버 지도":key==="kakao"?"카카오맵":"티맵"}</a>)}<Link href={`/hospital/${selected.id}`} className="rounded-2xl bg-[#183d35] px-4 py-4 text-center text-sm font-black text-white">병원 상세</Link></div>
+        <div
+          className="fixed inset-0 z-[90] bg-black/30"
+          onClick={()=>setNavigationOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${selected.name} 길찾기`}
+            className="absolute inset-x-3 bottom-[calc(92px+env(safe-area-inset-bottom))] mx-auto max-h-[calc(100dvh-128px-env(safe-area-inset-bottom))] w-auto max-w-md overflow-y-auto overscroll-contain rounded-[26px] border border-white/80 bg-[#fffdf8] p-4 shadow-2xl sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 sm:p-5"
+            onClick={e=>e.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 h-1.5 w-11 rounded-full bg-[#d8d4cb] sm:hidden" />
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black tracking-[.16em] text-[#ff725e]">NAVIGATION</p>
+                <h2 className="mt-1.5 break-keep text-lg font-black leading-7">{selected.name}</h2>
+                <p className="mt-1.5 break-keep text-[13px] font-bold leading-5 text-[#747e79]">{selected.address}</p>
+              </div>
+              <button
+                type="button"
+                aria-label="길찾기 창 닫기"
+                onClick={()=>setNavigationOpen(false)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eeeae1] text-lg font-black"
+              >×</button>
+            </div>
+
+            <p className="mt-4 text-xs font-black text-[#68736d]">사용할 지도를 선택하세요.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {Object.entries(navigationUrls(selected)).slice(0,3).map(([key,url])=><a
+                key={key}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex min-h-12 items-center justify-center rounded-2xl border border-[#ddd8cc] bg-white px-3 py-3 text-center text-sm font-black"
+              >{key==="naver"?"네이버 지도":key==="kakao"?"카카오맵":"티맵"}</a>)}
+              <Link
+                href={`/hospital/${selected.id}`}
+                className="flex min-h-12 items-center justify-center rounded-2xl bg-[#183d35] px-3 py-3 text-center text-sm font-black text-white"
+              >병원 상세</Link>
+            </div>
           </div>
         </div>
       )}
