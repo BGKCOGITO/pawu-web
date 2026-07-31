@@ -123,6 +123,7 @@ export default function NaverMap() {
     if(!mapRef.current){
       const center=location??{latitude:37.5665,longitude:126.978};
       mapRef.current=new window.naver.maps.Map(mapElement.current,{center:new window.naver.maps.LatLng(center.latitude,center.longitude),zoom:location?13:10,zoomControl:false});
+      mapRef.current.setOptions?.({ zoomControl: false });
     }
     markersRef.current.forEach(marker=>marker.setMap(null));
     markersRef.current=filtered.slice(0,300).map(h=>{
@@ -296,12 +297,12 @@ export default function NaverMap() {
 
       <section
         aria-hidden={view !== "map"}
-        className={view === "map" ? "relative h-[calc(100dvh-250px)] min-h-[520px] w-full overflow-hidden bg-[#dfe8e3]" : "hidden"}
+        className={view === "map" ? "relative h-[calc(100dvh-250px)] min-h-[500px] w-full overflow-hidden bg-[#dfe8e3]" : "hidden"}
       >
-        <div ref={mapElement} className="absolute inset-0 h-full w-full" />
+        <div ref={mapElement} className="absolute inset-0 h-full w-full [&_.nmap_zoom_control]:!hidden [&_[class*='zoom']]:!hidden" />
         {location&&<div className="pointer-events-none absolute left-3 top-3 z-20 flex items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 py-2 text-xs font-black text-[#183d35] shadow-lg backdrop-blur"><span className="h-3 w-3 rounded-full border-[3px] border-white bg-[#3584ff] shadow-[0_1px_5px_rgba(53,132,255,.55)]"/>현재 위치</div>}
         {!clientId&&<div className="absolute inset-0 flex items-center justify-center p-6"><div className="rounded-3xl bg-white p-6 text-center shadow-xl"><strong>지도 설정이 필요합니다.</strong><p className="mt-2 text-sm text-[#777]">네이버 지도 Client ID를 확인해 주세요.</p></div></div>}
-        {selected&&<div className="absolute inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-30 rounded-[24px] border border-white/80 bg-[#fffdf8]/95 p-4 shadow-2xl backdrop-blur-xl">
+        {selected&&<div className="fixed inset-x-3 bottom-[calc(92px+env(safe-area-inset-bottom))] z-[70] mx-auto max-w-md rounded-[24px] border border-white/80 bg-[#fffdf8]/95 p-4 shadow-2xl backdrop-blur-xl">
           <div className="flex items-start gap-3"><button type="button" onClick={()=>toggleFavorite(selected.id)} className={favorites.includes(selected.id)?"flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fff0ec] text-xl text-[#ff725e]":"flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#edf1ed] text-xl text-[#7f8a85]"}>{favorites.includes(selected.id)?"♥":"♡"}</button><div className="min-w-0 flex-1"><h2 className="truncate text-base font-black">{selected.name}</h2><p className="mt-1 line-clamp-2 text-xs font-bold leading-5 text-[#747e79]">{selected.address}</p></div><button type="button" onClick={()=>setSelectedId(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eeeae1] font-black">×</button></div>
           <div className="mt-3 grid grid-cols-3 gap-2"><Link href={`/hospital/${selected.id}`} className="flex min-h-11 items-center justify-center rounded-2xl bg-[#183d35] text-xs font-black text-white">상세</Link>{selected.phone?<a href={`tel:${selected.phone}`} className="flex min-h-11 items-center justify-center rounded-2xl bg-[#edf2ef] text-xs font-black">전화</a>:<span className="flex min-h-11 items-center justify-center rounded-2xl bg-[#efede7] text-xs font-bold text-[#aaa]">전화 없음</span>}<button type="button" onClick={()=>setNavigationOpen(true)} className="min-h-11 rounded-2xl bg-[#ff725e] text-xs font-black text-white">길찾기</button></div>
         </div>}
