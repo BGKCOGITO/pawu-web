@@ -112,7 +112,7 @@ export default async function HospitalDetailPage({ params }: Props) {
   return (
     <main className="min-h-screen bg-[#f4f5f1] pb-52 text-[#153b34] sm:pb-36">
       <div className="relative mx-auto max-w-6xl overflow-hidden bg-white shadow-[0_30px_90px_rgba(20,59,52,0.08)] sm:my-7 sm:rounded-[38px]">
-        <section className="relative min-h-[430px] overflow-hidden bg-[#173f37] sm:min-h-[540px]">
+        <section className="relative min-h-[360px] overflow-hidden bg-[#173f37] sm:min-h-[460px]">
           {hospital.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -129,7 +129,7 @@ export default async function HospitalDetailPage({ params }: Props) {
               </div>
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/5 to-[#102f2a]/95" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.18)_0%,rgba(0,0,0,0.10)_35%,rgba(8,29,25,0.82)_68%,rgba(8,29,25,0.98)_100%)]" />
 
           <div className="relative z-10 flex items-center justify-between px-4 pt-[max(18px,env(safe-area-inset-top))] sm:px-8 sm:pt-8">
             <Link
@@ -145,7 +145,7 @@ export default async function HospitalDetailPage({ params }: Props) {
             </div>
           </div>
 
-          <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-8 sm:px-10 sm:pb-11">
+          <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-7 sm:px-10 sm:pb-10">
             <div className="flex flex-wrap gap-2">
               <HeroBadge tone={isPartner ? "partner" : "public"}>
                 {isPartner ? "병원 직접 관리" : "공공데이터 정보"}
@@ -157,10 +157,10 @@ export default async function HospitalDetailPage({ params }: Props) {
                 {canReserve ? "온라인 예약 가능" : "전화 문의"}
               </HeroBadge>
             </div>
-            <h1 className="mt-4 max-w-3xl break-keep text-[34px] font-black leading-[1.12] tracking-[-0.055em] text-white sm:text-5xl">
+            <h1 className="mt-4 max-w-3xl break-keep text-[34px] font-black leading-[1.12] tracking-[-0.055em] text-white [text-shadow:0_3px_18px_rgba(0,0,0,0.72)] sm:text-5xl">
               {hospital.name}
             </h1>
-            <p className="mt-3 max-w-2xl break-words text-sm leading-6 text-white/78 sm:text-base">
+            <p className="mt-3 max-w-2xl break-words text-sm font-medium leading-6 text-white/90 [text-shadow:0_2px_10px_rgba(0,0,0,0.68)] sm:text-base">
               {primaryAddress}
             </p>
           </div>
