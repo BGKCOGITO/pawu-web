@@ -121,15 +121,13 @@ export default async function HospitalDetailPage({ params }: Props) {
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_12%,rgba(109,212,176,0.55),transparent_28%),radial-gradient(circle_at_8%_70%,rgba(255,114,94,0.28),transparent_34%),linear-gradient(135deg,#214f45,#102f2a)]">
-              <div className="absolute -right-14 top-24 h-64 w-64 rounded-full border border-white/10" />
-              <div className="absolute -right-3 top-36 h-44 w-44 rounded-full border border-white/10" />
-              <div className="absolute left-7 top-28 text-white/10">
-                <p className="text-[82px] font-black leading-none tracking-[-0.08em] sm:text-[140px]">P</p>
-              </div>
+            <div className="absolute inset-0 bg-[linear-gradient(145deg,#315f54_0%,#1c4a41_45%,#0b2924_100%)]">
+              <div className="absolute inset-x-0 top-0 h-44 bg-[radial-gradient(ellipse_at_top_right,rgba(134,225,190,0.28),transparent_62%)]" />
+              <div className="absolute bottom-24 left-6 right-6 h-px bg-white/10" />
             </div>
           )}
-          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.18)_0%,rgba(0,0,0,0.10)_35%,rgba(8,29,25,0.82)_68%,rgba(8,29,25,0.98)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(2,18,15,0.08)_0%,rgba(2,18,15,0.18)_38%,rgba(2,18,15,0.88)_66%,rgba(2,18,15,1)_100%)]" />
+          <div className="absolute inset-x-0 bottom-0 h-[52%] bg-black/25" />
 
           <div className="relative z-10 flex items-center justify-between px-4 pt-[max(18px,env(safe-area-inset-top))] sm:px-8 sm:pt-8">
             <Link
@@ -157,10 +155,26 @@ export default async function HospitalDetailPage({ params }: Props) {
                 {canReserve ? "온라인 예약 가능" : "전화 문의"}
               </HeroBadge>
             </div>
-            <h1 className="mt-4 max-w-3xl break-keep text-[34px] font-black leading-[1.12] tracking-[-0.055em] text-white [text-shadow:0_3px_18px_rgba(0,0,0,0.72)] sm:text-5xl">
-              {hospital.name}
-            </h1>
-            <p className="mt-3 max-w-2xl break-words text-sm font-medium leading-6 text-white/90 [text-shadow:0_2px_10px_rgba(0,0,0,0.68)] sm:text-base">
+            <div className="mt-4 rounded-[20px] border border-white/10 bg-black/35 px-4 py-3 backdrop-blur-[2px] sm:inline-block sm:px-5 sm:py-4">
+              <h1
+                className="max-w-3xl break-keep text-[34px] font-black leading-[1.12] tracking-[-0.055em] sm:text-5xl"
+                style={{
+                  color: "#ffffff",
+                  WebkitTextFillColor: "#ffffff",
+                  textShadow: "0 3px 14px rgba(0,0,0,0.95)",
+                }}
+              >
+                {hospital.name}
+              </h1>
+            </div>
+            <p
+              className="mt-3 max-w-2xl break-words text-sm font-semibold leading-6 sm:text-base"
+              style={{
+                color: "rgba(255,255,255,0.94)",
+                WebkitTextFillColor: "rgba(255,255,255,0.94)",
+                textShadow: "0 2px 10px rgba(0,0,0,0.92)",
+              }}
+            >
               {primaryAddress}
             </p>
           </div>
