@@ -209,21 +209,60 @@ export default async function HospitalDetailPage({ params }: Props) {
             </section>
 
             <section className="mt-5 grid grid-cols-3 gap-2.5 sm:gap-4">
-              <FeatureTile icon="P" title="주차" value={availabilityLabel(hospital.parking_available)} active={hospital.parking_available === true} />
-              <FeatureTile icon="N" title="야간 진료" value={availabilityLabel(hospital.night_care_available)} active={hospital.night_care_available === true} />
-              <FeatureTile icon="E" title="응급 진료" value={availabilityLabel(hospital.emergency_care_available)} active={hospital.emergency_care_available === true} />
+              <FeatureTile icon="parking" title="주차" value={availabilityLabel(hospital.parking_available)} active={hospital.parking_available === true} />
+              <FeatureTile icon="moon" title="야간 진료" value={availabilityLabel(hospital.night_care_available)} active={hospital.night_care_available === true} />
+              <FeatureTile icon="emergency" title="응급 진료" value={availabilityLabel(hospital.emergency_care_available)} active={hospital.emergency_care_available === true} />
+            </section>
+
+            <section className="mt-5 overflow-hidden rounded-[30px] border border-[#dce5e1] bg-[#153b34] text-white shadow-[0_18px_45px_rgba(20,59,52,0.16)]">
+              <div className="grid gap-0 sm:grid-cols-[1fr_auto] sm:items-stretch">
+                <div className="p-5 sm:p-7">
+                  <p className="text-xs font-black tracking-[0.18em] text-white/50">TODAY&apos;S GUIDE</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-3 py-1.5 text-xs font-black ${hospital.is_active ? "bg-[#35b786] text-white" : "bg-[#ff725e] text-white"}`}>
+                      {statusLabel(hospital)}
+                    </span>
+                    <span className={`rounded-full px-3 py-1.5 text-xs font-black ${canReserve ? "bg-white text-[#153b34]" : "border border-white/20 bg-white/10 text-white/80"}`}>
+                      {canReserve ? "온라인 예약 가능" : "방문 전 전화 확인"}
+                    </span>
+                  </div>
+                  <h2 className="mt-5 text-[22px] font-black tracking-[-0.035em] sm:text-2xl">오늘 진료 안내</h2>
+                  <p className="mt-2 text-sm leading-6 text-white/70">
+                    진료시간은 병원 사정에 따라 변경될 수 있습니다. 방문 전 전화로 당일 접수와 종료 시간을 확인해 주세요.
+                  </p>
+                </div>
+                <div className="border-t border-white/10 p-4 sm:flex sm:min-w-[220px] sm:items-center sm:border-l sm:border-t-0 sm:p-6">
+                  {hospital.phone ? (
+                    <a href={`tel:${hospital.phone}`} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[20px] bg-white px-5 text-sm font-black text-[#153b34] shadow-lg transition active:scale-[0.98]">
+                      <ActionIcon name="phone" />
+                      병원에 전화하기
+                    </a>
+                  ) : (
+                    <div className="rounded-[20px] border border-white/15 bg-white/10 px-5 py-4 text-center text-sm font-bold text-white/60">전화번호 정보 없음</div>
+                  )}
+                </div>
+              </div>
             </section>
 
             <div className="mt-5 grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
               <div className="space-y-5">
-                <ContentCard number="01" title="병원 소개">
+                <ContentCard number="01" title="병원 기본정보">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <DetailItem icon="location" label="주소" value={primaryAddress} />
+                    <DetailItem icon="phone" label="전화번호" value={hospital.phone ?? "정보 없음"} href={hospital.phone ? `tel:${hospital.phone}` : undefined} />
+                    <DetailItem icon="refresh" label="최근 정보 업데이트" value={formatDate(hospital.public_data_updated_at)} />
+                    <DetailItem icon="shield" label="정보 관리 방식" value={isPartner ? "병원 직접 관리" : "공공데이터 기반"} />
+                  </div>
+                </ContentCard>
+
+                <ContentCard number="02" title="병원 소개">
                   <p className="whitespace-pre-wrap text-[15px] leading-7 text-[#61736e]">
                     {hospital.description ||
                       "병원에서 직접 등록한 소개가 아직 없습니다. 현재는 확인된 기본 병원정보를 제공하고 있습니다."}
                   </p>
                 </ContentCard>
 
-                <ContentCard number="02" title="진료 안내">
+                <ContentCard number="03" title="진료 안내">
                   <InfoCollection title="진료 과목">
                     {services.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
@@ -245,7 +284,7 @@ export default async function HospitalDetailPage({ params }: Props) {
                   </InfoCollection>
                 </ContentCard>
 
-                <ContentCard number="03" title="위치">
+                <ContentCard number="04" title="위치">
                   <div className="overflow-hidden rounded-[24px] bg-[#153b34] p-5 text-white sm:p-6">
                     <div className="flex items-start justify-between gap-5">
                       <div>
@@ -300,7 +339,7 @@ export default async function HospitalDetailPage({ params }: Props) {
             </div>
 
             <div className="mt-5">
-              <ContentCard number="04" title="방문 후기">
+              <ContentCard number="05" title="방문 후기">
                 <div className="mb-5 rounded-[20px] bg-[#f5f6f3] px-4 py-3 text-sm leading-6 text-[#687a75]">
                   PAWU는 병원을 점수로 평가하지 않습니다. 실제 방문 보호자의 경험을 글로 확인할 수 있습니다.
                 </div>
@@ -343,14 +382,44 @@ function HeroBadge({ children, tone }: { children: ReactNode; tone: "partner" | 
   return <span className={`rounded-full border px-3 py-1.5 text-xs font-black backdrop-blur-xl ${styles[tone]}`}>{children}</span>;
 }
 
-function FeatureTile({ icon, title, value, active }: { icon: string; title: string; value: string; active: boolean }) {
+function FeatureTile({ icon, title, value, active }: { icon: "parking" | "moon" | "emergency"; title: string; value: string; active: boolean }) {
   return (
     <div className={`rounded-[24px] border p-3 text-center shadow-sm sm:p-5 ${active ? "border-[#c5e6db] bg-[#ecf8f3]" : "border-[#e1e6e2] bg-white"}`}>
-      <span className={`mx-auto flex h-10 w-10 items-center justify-center rounded-2xl text-xs font-black ${active ? "bg-[#173f37] text-white" : "bg-[#f0f2ef] text-[#81908b]"}`}>{icon}</span>
+      <span className={`mx-auto flex h-11 w-11 items-center justify-center rounded-2xl ${active ? "bg-[#173f37] text-white" : "bg-[#f0f2ef] text-[#81908b]"}`}>
+        <ActionIcon name={icon} />
+      </span>
       <p className="mt-3 text-[11px] font-bold text-[#87958f] sm:text-xs">{title}</p>
       <p className="mt-1 break-keep text-xs font-black text-[#294a43] sm:text-sm">{value}</p>
     </div>
   );
+}
+
+function DetailItem({ icon, label, value, href }: { icon: IconName; label: string; value: string; href?: string }) {
+  const content = (
+    <div className="flex min-h-[88px] items-start gap-3 rounded-[22px] border border-[#e5eae6] bg-[#f8faf7] p-4 transition hover:border-[#cbdad4]">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[#1b5146] shadow-sm">
+        <ActionIcon name={icon} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-xs font-bold text-[#87958f]">{label}</span>
+        <span className="mt-1 block break-words text-sm font-black leading-6 text-[#294a43]">{value}</span>
+      </span>
+    </div>
+  );
+  return href ? <a href={href}>{content}</a> : content;
+}
+
+type IconName = "parking" | "moon" | "emergency" | "location" | "phone" | "refresh" | "shield";
+
+function ActionIcon({ name }: { name: IconName }) {
+  const common = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
+  if (name === "parking") return <svg {...common}><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M9 17V7h4.2a3.2 3.2 0 0 1 0 6.4H9" /></svg>;
+  if (name === "moon") return <svg {...common}><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7Z" /></svg>;
+  if (name === "emergency") return <svg {...common}><path d="M12 2v20M2 12h20" /><circle cx="12" cy="12" r="8" /></svg>;
+  if (name === "location") return <svg {...common}><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></svg>;
+  if (name === "phone") return <svg {...common}><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.4 19.4 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2Z" /></svg>;
+  if (name === "refresh") return <svg {...common}><path d="M20 11a8 8 0 0 0-14.8-4M4 3v5h5M4 13a8 8 0 0 0 14.8 4M20 21v-5h-5" /></svg>;
+  return <svg {...common}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></svg>;
 }
 
 function ContentCard({ number, title, children }: { number: string; title: string; children: ReactNode }) {
