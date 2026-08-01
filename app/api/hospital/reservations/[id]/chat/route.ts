@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireHospitalContext } from "@/lib/hospital-api-auth";
-import { enforceRateLimit } from "@/lib/server/security-policy";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const limited = enforceRateLimit(request, {
-    scope: "reservation-chat-start",
-    limit: 60,
-    windowMs: 60_000,
-  });
-  if (limited) return limited;
-
   const context = await requireHospitalContext(request, "manage_reservations");
   if ("error" in context) {
     return NextResponse.json({ message: context.error }, { status: context.status });
@@ -22,34 +14,38 @@ export async function POST(
   const { id } = await params;
   const reservationId = Number(id);
   if (!Number.isInteger(reservationId)) {
-    return NextResponse.json({ message: "예약 정보가 올바르지 않습니다." }, { status: 400 });
+    return NextResponse.json({ message: "예약번호가 올바르지 않습니다." }, { status: 400 });
   }
 
   const { data: reservation, error: reservationError } = await supabaseAdmin
     .from("reservations")
-    .select("id,user_id,hospital_id,pet_id,guardian_name,pet_name,status,reservation_date,reservation_time")
+    .select("id,user_id,hospital_id,pet_id")
     .eq("id", reservationId)
     .eq("hospital_id", context.hospitalId)
     .maybeSingle();
 
-  if (reservationError || !reservation) {
+  if (reservationError) {
+    return NextResponse.json({ message: reservationError.message }, { status: 500 });
+  }
+  if (!reservation) {
     return NextResponse.json({ message: "예약을 찾을 수 없습니다." }, { status: 404 });
   }
 
-  const { data: existing } = await supabaseAdmin
+  const { data: existing, error: existingError } = await supabaseAdmin
     .from("chat_conversations")
     .select("id")
     .eq("reservation_id", reservation.id)
     .maybeSingle();
 
+  if (existingError) {
+    return NextResponse.json({ message: existingError.message }, { status: 500 });
+  }
   if (existing) {
-    return NextResponse.json({ success: true, conversationId: existing.id });
+    return NextResponse.json({ ok: true, conversationId: existing.id });
   }
 
-  const initialText = `${reservation.guardian_name} 보호자님, ${reservation.reservation_date} ${String(reservation.reservation_time).slice(0, 5)} 예약과 관련해 병원에서 채팅을 시작했습니다.`;
   const now = new Date().toISOString();
-
-  const { data: conversation, error: conversationError } = await supabaseAdmin
+  const { data: created, error: createError } = await supabaseAdmin
     .from("chat_conversations")
     .insert({
       reservation_id: reservation.id,
@@ -58,25 +54,25 @@ export async function POST(
       pet_id: reservation.pet_id,
       status: "open",
       last_message_at: now,
-      last_message_preview: initialText.slice(0, 120),
+      last_message_preview: "병원에서 예약 상담 채팅을 시작했습니다.",
     })
     .select("id")
     .single();
 
-  if (conversationError || !conversation) {
+  if (createError || !created) {
     return NextResponse.json(
-      { message: conversationError?.message ?? "채팅방을 만들지 못했습니다." },
+      { message: createError?.message ?? "채팅방을 만들지 못했습니다." },
       { status: 500 },
     );
   }
 
   await supabaseAdmin.from("chat_messages").insert({
-    conversation_id: conversation.id,
+    conversation_id: created.id,
     sender_user_id: context.user.id,
-    sender_type: "hospital",
+    sender_type: "system",
     message_type: "system",
-    content: initialText,
+    content: "병원에서 예약 확인을 위한 채팅을 시작했습니다.",
   });
 
-  return NextResponse.json({ success: true, conversationId: conversation.id });
+  return NextResponse.json({ ok: true, conversationId: created.id });
 }
