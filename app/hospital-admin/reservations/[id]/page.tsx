@@ -37,6 +37,11 @@ export default function HospitalReservationDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [scheduleReason, setScheduleReason] = useState("");
+  const [showScheduleEditor, setShowScheduleEditor] = useState(false);
+  const [startingChat, setStartingChat] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -50,6 +55,8 @@ export default function HospitalReservationDetailPage() {
       if (!response.ok) throw new Error(result.message);
       setReservation(result.reservation);
       setAttachments(result.attachments ?? []);
+      setScheduleDate(result.reservation?.reservation_date ?? "");
+      setScheduleTime(String(result.reservation?.reservation_time ?? "").slice(0, 5));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "예약 조회 실패");
     } finally {
@@ -107,6 +114,64 @@ export default function HospitalReservationDetailPage() {
       setMessage(error instanceof Error ? error.message : "상태 변경 실패");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function changeSchedule() {
+    if (!reservation || !scheduleDate || !scheduleTime) return;
+
+    const confirmed = window.confirm(
+      `예약 시간을 ${scheduleDate} ${scheduleTime}으로 변경하시겠습니까?`,
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+
+    try {
+      const response = await hospitalAuthFetch(
+        `/api/hospital/reservations/${reservation.id}/schedule`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            reservation_date: scheduleDate,
+            reservation_time: scheduleTime,
+            reason: scheduleReason,
+          }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message);
+      setShowScheduleEditor(false);
+      setScheduleReason("");
+      setMessage("예약 시간이 변경되었습니다. 연결된 채팅방이 있으면 보호자에게 변경 내용이 자동 안내됩니다.");
+      await load();
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "예약 시간 변경 실패");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function openGuardianChat() {
+    if (!reservation) return;
+
+    setStartingChat(true);
+    setMessage("");
+
+    try {
+      const response = await hospitalAuthFetch(
+        `/api/hospital/reservations/${reservation.id}/chat`,
+        { method: "POST" },
+      );
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message);
+      router.push(`/hospital-admin/chat/${result.conversationId}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "보호자 채팅 연결 실패");
+      setStartingChat(false);
     }
   }
 
@@ -240,6 +305,90 @@ export default function HospitalReservationDetailPage() {
               >
                 전자차트 열기
               </button>
+            </article>
+
+            <article className="border border-slate-300 bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold">예약 시간 관리</h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    수술·응급 일정 등으로 조정이 필요할 때 병원에서 날짜와 시간을 변경합니다.
+                  </p>
+                </div>
+                {["requested", "approved"].includes(reservation.status) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowScheduleEditor((current) => !current)}
+                    className="border border-slate-950 px-3 py-2 text-sm font-bold"
+                  >
+                    {showScheduleEditor ? "변경 닫기" : "예약시간 변경"}
+                  </button>
+                )}
+              </div>
+
+              {showScheduleEditor && ["requested", "approved"].includes(reservation.status) && (
+                <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label>
+                      <span className="mb-1 block text-xs font-bold text-slate-500">변경 날짜</span>
+                      <input
+                        type="date"
+                        value={scheduleDate}
+                        onChange={(event) => setScheduleDate(event.target.value)}
+                        className="w-full border border-slate-300 px-3 py-3"
+                      />
+                    </label>
+                    <label>
+                      <span className="mb-1 block text-xs font-bold text-slate-500">변경 시간</span>
+                      <input
+                        type="time"
+                        value={scheduleTime}
+                        onChange={(event) => setScheduleTime(event.target.value)}
+                        className="w-full border border-slate-300 px-3 py-3"
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    <span className="mb-1 block text-xs font-bold text-slate-500">변경 사유 · 선택</span>
+                    <textarea
+                      rows={3}
+                      value={scheduleReason}
+                      onChange={(event) => setScheduleReason(event.target.value)}
+                      placeholder="예: 응급 수술 일정으로 30분 뒤로 조정합니다."
+                      className="w-full resize-none border border-slate-300 px-3 py-3 text-sm"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={saving || !scheduleDate || !scheduleTime}
+                    onClick={() => void changeSchedule()}
+                    className="w-full bg-amber-600 px-4 py-3 font-bold text-white disabled:opacity-50"
+                  >
+                    {saving ? "변경 중..." : "새 예약시간 저장"}
+                  </button>
+                  <p className="text-xs leading-5 text-slate-500">
+                    운영시간·휴게시간·임시 마감·기존 예약을 확인한 뒤 변경됩니다. 변경 후 예약 상태는 승인으로 유지됩니다.
+                  </p>
+                </div>
+              )}
+            </article>
+
+            <article className="border border-emerald-300 bg-emerald-50 p-5">
+              <h3 className="text-lg font-bold text-emerald-950">보호자 바로 연락</h3>
+              <p className="mt-2 text-sm leading-6 text-emerald-900/70">
+                일반 예약은 바로 승인하고, 일정 조율이나 사전 안내가 필요할 때는 이 예약과 연결된 채팅을 시작하세요.
+              </p>
+              <button
+                type="button"
+                disabled={startingChat}
+                onClick={() => void openGuardianChat()}
+                className="mt-4 w-full bg-emerald-900 px-4 py-3 font-bold text-white disabled:opacity-50"
+              >
+                {startingChat ? "채팅 연결 중..." : "보호자와 채팅하기"}
+              </button>
+              <p className="mt-2 text-xs text-emerald-900/60">
+                승인 전 예약도 병원에서 먼저 채팅을 시작할 수 있습니다.
+              </p>
             </article>
 
             <article className="border border-slate-300 bg-white p-5">

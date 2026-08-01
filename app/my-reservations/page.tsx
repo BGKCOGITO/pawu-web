@@ -403,6 +403,7 @@ export default function MyReservationsPage() {
     useState<SelectedMedicalRecord | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [conversationByReservation, setConversationByReservation] = useState<Record<number, number>>({});
 
   useEffect(() => {
     async function loadReservations() {
@@ -544,7 +545,24 @@ export default function MyReservationsPage() {
         return;
       }
 
-      setReservations((data ?? []) as unknown as Reservation[]);
+      const loadedReservations = (data ?? []) as unknown as Reservation[];
+      setReservations(loadedReservations);
+
+      const reservationIds = loadedReservations.map((item) => item.id);
+      if (reservationIds.length > 0) {
+        const { data: conversations } = await supabase
+          .from("chat_conversations")
+          .select("id,reservation_id")
+          .eq("guardian_user_id", user.id)
+          .in("reservation_id", reservationIds);
+
+        const nextMap: Record<number, number> = {};
+        for (const conversation of conversations ?? []) {
+          nextMap[Number(conversation.reservation_id)] = Number(conversation.id);
+        }
+        setConversationByReservation(nextMap);
+      }
+
       setIsLoading(false);
     }
 
@@ -870,6 +888,15 @@ export default function MyReservationsPage() {
                         <div className="mt-5 rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
                           병원에서 진료기록을 준비하고 있습니다.
                         </div>
+                      )}
+
+                      {conversationByReservation[reservation.id] && (
+                        <Link
+                          href={`/chat/${conversationByReservation[reservation.id]}`}
+                          className="mt-5 block w-full rounded-2xl bg-emerald-700 px-4 py-3 text-center text-sm font-semibold text-white"
+                        >
+                          병원과 채팅하기
+                        </Link>
                       )}
 
                       {canCancel && (
