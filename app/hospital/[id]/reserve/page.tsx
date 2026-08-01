@@ -119,6 +119,7 @@ export default function ReservationPage() {
   const [selectedPetId, setSelectedPetId] = useState("");
   const [healthEvents, setHealthEvents] = useState<VisitPreparationEvent[]>([]);
   const [selectedEventIds, setSelectedEventIds] = useState<number[]>([]);
+  const [eventPeriodDays, setEventPeriodDays] = useState(30);
 
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
@@ -237,7 +238,7 @@ export default function ReservationPage() {
     void loadUserAndPets();
   }, []);
 
-  async function loadHealthEvents(petId: string) {
+  async function loadHealthEvents(petId: string, periodDays = eventPeriodDays) {
     setSelectedPetId(petId);
     setSelectedEventIds([]);
     setHealthEvents([]);
@@ -249,6 +250,10 @@ export default function ReservationPage() {
 
     setIsLoadingEvents(true);
 
+    const periodStart = new Date();
+    periodStart.setHours(0, 0, 0, 0);
+    periodStart.setDate(periodStart.getDate() - Math.max(1, periodDays));
+
     const { data, error } = await supabase
       .from("pet_health_events")
       .select(
@@ -257,8 +262,9 @@ export default function ReservationPage() {
       .eq("user_id", user.id)
       .eq("pet_id", parsedPetId)
       .eq("share_with_hospital", true)
+      .gte("occurred_at", periodStart.toISOString())
       .order("occurred_at", { ascending: false })
-      .limit(30);
+      .limit(60);
 
     if (error) {
       console.error("건강 이벤트 조회 오류:", error);
@@ -872,6 +878,30 @@ export default function ReservationPage() {
               </span>
             </h2>
 
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-xs font-bold text-gray-500">표시 기간</span>
+              {[7, 30, 90].map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => {
+                    setEventPeriodDays(days);
+                    if (selectedPetId) void loadHealthEvents(selectedPetId, days);
+                  }}
+                  className={`rounded-full border px-3 py-2 text-xs font-bold transition ${
+                    eventPeriodDays === days
+                      ? "border-[#153f34] bg-[#153f34] text-white"
+                      : "border-gray-200 bg-white text-gray-600"
+                  }`}
+                >
+                  최근 {days}일
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-gray-400">
+              오래된 기록은 자동으로 제외됩니다. 필요한 기록만 선택해 병원에 전달하세요.
+            </p>
+
             {!selectedPetId ? (
               <p className="mt-5 rounded-2xl bg-gray-50 p-5 text-sm text-gray-500">
                 반려동물을 먼저 선택하면 건강기록이 표시됩니다.
@@ -882,7 +912,7 @@ export default function ReservationPage() {
               </p>
             ) : healthEvents.length === 0 ? (
               <p className="mt-5 rounded-2xl bg-gray-50 p-5 text-sm text-gray-500">
-                병원 공유로 설정된 건강기록이 없습니다. 기록 없이도 예약할 수 있습니다.
+                최근 {eventPeriodDays}일 안에 병원 공유로 설정된 건강기록이 없습니다. 기록 없이도 예약할 수 있습니다.
               </p>
             ) : (
               <>
