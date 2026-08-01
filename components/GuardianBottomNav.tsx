@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 function NavIcon({ name }: { name: string }) {
@@ -28,6 +28,7 @@ const items = [
 export default function GuardianBottomNav() {
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
+  const previousUnreadRef = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -45,7 +46,42 @@ export default function GuardianBottomNav() {
         cache: "no-store",
       });
       const result = await response.json().catch(() => ({ count: 0 }));
-      if (active) setUnreadCount(Number(result.count) || 0);
+      const nextCount = Number(result.count) || 0;
+
+      if (active && previousUnreadRef.current !== null && nextCount > previousUnreadRef.current) {
+        try {
+          if (typeof Notification !== "undefined" && Notification.permission === "granted" && "serviceWorker" in navigator) {
+            const registration = await navigator.serviceWorker.ready;
+            await registration.showNotification("PAWU 새 병원 메시지", {
+              body: "병원에서 새 채팅 메시지를 보냈습니다.",
+              icon: "/icons/pawu-v903-192.png",
+              badge: "/icons/pawu-v903-192.png",
+              tag: "pawu-chat-message",
+              data: { url: "/chat" },
+              vibrate: [180, 80, 180],
+            } as NotificationOptions);
+          }
+
+          const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+          if (AudioContextClass) {
+            const context = new AudioContextClass();
+            const oscillator = context.createOscillator();
+            const gain = context.createGain();
+            oscillator.frequency.value = 880;
+            gain.gain.setValueAtTime(0.08, context.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.3);
+            oscillator.connect(gain);
+            gain.connect(context.destination);
+            oscillator.start();
+            oscillator.stop(context.currentTime + 0.3);
+          }
+        } catch {
+          // 알림/소리 재생이 차단되어도 배지 갱신은 계속합니다.
+        }
+      }
+
+      previousUnreadRef.current = nextCount;
+      if (active) setUnreadCount(nextCount);
     }
 
     void loadUnread();

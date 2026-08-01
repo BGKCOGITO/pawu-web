@@ -79,6 +79,38 @@ export async function POST(request: Request) {
     })
     .eq("id", conversationId);
 
+  if (access.actorType === "hospital") {
+    const { data: conversation } = await supabaseAdmin
+      .from("chat_conversations")
+      .select("guardian_user_id,hospital_id,hospitals(name)")
+      .eq("id", conversationId)
+      .maybeSingle();
+
+    const guardianUserId = conversation?.guardian_user_id;
+    if (guardianUserId) {
+      const { data: preference } = await supabaseAdmin
+        .from("notification_preferences")
+        .select("chat_messages")
+        .eq("user_id", guardianUserId)
+        .maybeSingle();
+
+      if (preference?.chat_messages !== false) {
+        const hospitalValue = (conversation as any)?.hospitals;
+        const hospital = Array.isArray(hospitalValue) ? hospitalValue[0] : hospitalValue;
+        const preview = messageType === "text" ? content.slice(0, 100) : body.fileName ?? "첨부파일을 보냈습니다.";
+
+        await supabaseAdmin.from("notifications").insert({
+          user_id: guardianUserId,
+          type: "chat_message",
+          title: `${hospital?.name ?? "동물병원"}에서 새 메시지가 왔습니다`,
+          body: preview,
+          link_url: `/chat/${conversationId}`,
+          metadata: { conversation_id: conversationId, hospital_id: conversation?.hospital_id },
+        });
+      }
+    }
+  }
+
   return NextResponse.json({ ok: true, messageId: created.id });
 }
 

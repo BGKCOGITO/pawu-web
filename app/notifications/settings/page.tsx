@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "../../../lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 const labels: Array<[string, string, string]> = [
   ["reservation_updates", "예약 알림", "예약 승인, 변경, 취소 상태를 받습니다."],
@@ -16,6 +16,7 @@ const labels: Array<[string, string, string]> = [
 export default function NotificationSettingsPage() {
   const [prefs, setPrefs] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState("");
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
 
   async function getToken() {
     const { data } = await supabase.auth.getSession();
@@ -23,27 +24,38 @@ export default function NotificationSettingsPage() {
   }
 
   useEffect(() => {
+    setPermission(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
     async function load() {
       const token = await getToken();
       if (!token) return;
-      const response = await fetch("/api/notifications/preferences", {
-        headers: { authorization: `Bearer ${token}` },
-      });
+      const response = await fetch("/api/notifications/preferences", { headers: { authorization: `Bearer ${token}` } });
       const result = await response.json();
       setPrefs(result.preferences ?? {});
     }
     void load();
   }, []);
 
+  async function enableBrowserNotification() {
+    if (typeof Notification === "undefined") {
+      setMessage("이 기기에서는 브라우저 알림을 지원하지 않습니다.");
+      return;
+    }
+    const next = await Notification.requestPermission();
+    setPermission(next);
+    if (next === "granted") {
+      setPrefs((current) => ({ ...current, browser_push: true, chat_messages: true }));
+      setMessage("브라우저 알림을 허용했습니다. 앱이 열려 있거나 실행 중일 때 새 채팅 알림과 소리가 표시됩니다.");
+    } else {
+      setMessage("알림 권한이 허용되지 않았습니다. 휴대폰 설정에서 PAWU 알림을 허용해 주세요.");
+    }
+  }
+
   async function save() {
     const token = await getToken();
     if (!token) return;
     const response = await fetch("/api/notifications/preferences", {
       method: "PUT",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-      },
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify(prefs),
     });
     setMessage(response.ok ? "알림 설정을 저장했습니다." : "설정을 저장하지 못했습니다.");
@@ -55,24 +67,30 @@ export default function NotificationSettingsPage() {
         <Link href="/notifications" className="rounded-xl border bg-white px-4 py-2 text-sm">← 알림센터</Link>
         <h1 className="mt-8 text-3xl font-black">알림 설정</h1>
 
-        <div className="mt-6 space-y-3">
+        <section className="mt-6 rounded-3xl border bg-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <strong>휴대폰 알림 권한</strong>
+              <p className="mt-1 text-sm text-gray-500">
+                현재 상태: {permission === "granted" ? "허용됨" : permission === "denied" ? "차단됨" : permission === "unsupported" ? "지원하지 않음" : "허용 전"}
+              </p>
+            </div>
+            <button type="button" onClick={() => void enableBrowserNotification()} className="rounded-2xl bg-[#153f34] px-5 py-3 font-bold text-white">
+              알림 켜기
+            </button>
+          </div>
+        </section>
+
+        <div className="mt-4 space-y-3">
           {labels.map(([key, title, description]) => (
             <label key={key} className="flex cursor-pointer items-center justify-between gap-5 rounded-3xl border bg-white p-5">
-              <div>
-                <strong>{title}</strong>
-                <p className="mt-1 text-sm text-gray-500">{description}</p>
-              </div>
-              <input
-                type="checkbox"
-                checked={prefs[key] ?? false}
-                onChange={(event) => setPrefs((current) => ({ ...current, [key]: event.target.checked }))}
-                className="h-5 w-5"
-              />
+              <div><strong>{title}</strong><p className="mt-1 text-sm text-gray-500">{description}</p></div>
+              <input type="checkbox" checked={prefs[key] ?? false} onChange={(event) => setPrefs((current) => ({ ...current, [key]: event.target.checked }))} className="h-5 w-5" />
             </label>
           ))}
         </div>
 
-        {message && <p className="mt-5 rounded-xl bg-white p-4 text-sm">{message}</p>}
+        {message && <p className="mt-5 rounded-xl bg-white p-4 text-sm leading-6">{message}</p>}
         <button onClick={() => void save()} className="mt-5 w-full rounded-2xl bg-black p-4 font-bold text-white">설정 저장</button>
       </div>
     </main>
