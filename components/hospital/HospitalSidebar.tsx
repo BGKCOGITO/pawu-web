@@ -161,6 +161,20 @@ const menuGroups: MenuGroup[] = [
         permission: "manage_staff",
       },
       {
+        href: "/hospital-admin/business-hours",
+        label: "운영시간 관리",
+        shortLabel: "시간",
+        icon: "◷",
+        permission: "manage_reservations",
+      },
+      {
+        href: "/hospital-admin/time-blocks",
+        label: "예약시간 열기·닫기",
+        shortLabel: "마감",
+        icon: "⊘",
+        permission: "manage_reservations",
+      },
+      {
         href: "/hospital-admin/analytics",
         label: "운영 분석",
         shortLabel: "분석",

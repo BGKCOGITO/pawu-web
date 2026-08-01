@@ -33,18 +33,14 @@ type HospitalTimeBlock = {
   end_time: string;
 };
 
-const reservationTimes = [
-  "09:00",
-  "09:30",
-  "10:00",
-  "10:30",
-  "11:00",
-  "14:00",
-  "14:30",
-  "15:00",
-  "15:30",
-  "16:00",
-];
+type HospitalBusinessHour = {
+  is_open: boolean;
+  open_time: string | null;
+  close_time: string | null;
+  break_start_time: string | null;
+  break_end_time: string | null;
+  slot_interval_minutes: number | null;
+};
 
 const priorityLabels: Record<string, string> = {
   emergency: "응급",
@@ -61,6 +57,36 @@ function getSpeciesLabel(species: Pet["species"]) {
 
 function normalizeTime(time: string) {
   return String(time).slice(0, 5);
+}
+
+function timeToMinutes(time: string) {
+  const [hour, minute] = normalizeTime(time).split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function minutesToTime(totalMinutes: number) {
+  const hour = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function generateReservationTimes(hour: HospitalBusinessHour) {
+  if (!hour.is_open || !hour.open_time || !hour.close_time) return [];
+
+  const start = timeToMinutes(hour.open_time);
+  const end = timeToMinutes(hour.close_time);
+  const interval = Math.max(5, Number(hour.slot_interval_minutes) || 30);
+  const breakStart = hour.break_start_time ? timeToMinutes(hour.break_start_time) : null;
+  const breakEnd = hour.break_end_time ? timeToMinutes(hour.break_end_time) : null;
+  const times: string[] = [];
+
+  for (let minute = start; minute < end; minute += interval) {
+    const insideBreak =
+      breakStart !== null && breakEnd !== null && minute >= breakStart && minute < breakEnd;
+    if (!insideBreak) times.push(minutesToTime(minute));
+  }
+
+  return times;
 }
 
 function isTimeInsideBlock(
@@ -96,7 +122,9 @@ export default function ReservationPage() {
 
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
+  const [reservationTimes, setReservationTimes] = useState<string[]>([]);
   const [bookedTimes, setBookedTimes] = useState<string[]>([]);
+  const [scheduleMessage, setScheduleMessage] = useState("");
   const [visitReason, setVisitReason] = useState("");
   const [symptoms, setSymptoms] = useState("");
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -244,7 +272,9 @@ export default function ReservationPage() {
 
   async function loadBookedTimes(date: string) {
     setSelectedTime("");
+    setReservationTimes([]);
     setBookedTimes([]);
+    setScheduleMessage("");
     setErrorMessage("");
 
     if (!date) return;
@@ -256,6 +286,7 @@ export default function ReservationPage() {
       return;
     }
 
+    const selectedDayOfWeek = new Date(`${date}T12:00:00`).getDay();
     setIsLoadingTimes(true);
 
     let reservationQuery = supabase
@@ -269,19 +300,25 @@ export default function ReservationPage() {
       reservationQuery = reservationQuery.neq("id", changeReservationId);
     }
 
-    const [reservationResult, timeBlockResult] = await Promise.all([
+    const [reservationResult, timeBlockResult, businessHourResult] = await Promise.all([
       reservationQuery,
       supabase
         .from("hospital_time_blocks")
         .select("start_time, end_time")
         .eq("hospital_id", parsedHospitalId)
         .eq("block_date", date),
+      supabase
+        .from("hospital_business_hours")
+        .select("is_open,open_time,close_time,break_start_time,break_end_time,slot_interval_minutes")
+        .eq("hospital_id", parsedHospitalId)
+        .eq("day_of_week", selectedDayOfWeek)
+        .maybeSingle(),
     ]);
 
-    if (reservationResult.error || timeBlockResult.error) {
+    if (reservationResult.error || timeBlockResult.error || businessHourResult.error) {
       console.error(
         "예약 시간 조회 오류:",
-        reservationResult.error ?? timeBlockResult.error,
+        reservationResult.error ?? timeBlockResult.error ?? businessHourResult.error,
       );
       setErrorMessage(
         "예약 가능한 시간을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
@@ -290,16 +327,29 @@ export default function ReservationPage() {
       return;
     }
 
-    const reservationRows =
-      (reservationResult.data ?? []) as ReservationTimeRow[];
-    const timeBlocks =
-      (timeBlockResult.data ?? []) as HospitalTimeBlock[];
+    const businessHour = businessHourResult.data as HospitalBusinessHour | null;
 
+    if (!businessHour) {
+      setScheduleMessage("병원에서 이 요일의 운영시간을 아직 등록하지 않았습니다.");
+      setIsLoadingTimes(false);
+      return;
+    }
+
+    if (!businessHour.is_open) {
+      setScheduleMessage("선택한 날짜는 병원 휴무일입니다.");
+      setIsLoadingTimes(false);
+      return;
+    }
+
+    const generatedTimes = generateReservationTimes(businessHour);
+    setReservationTimes(generatedTimes);
+
+    const reservationRows = (reservationResult.data ?? []) as ReservationTimeRow[];
+    const timeBlocks = (timeBlockResult.data ?? []) as HospitalTimeBlock[];
     const reservedTimes = reservationRows.map((reservation) =>
       normalizeTime(reservation.reservation_time),
     );
-
-    const temporarilyBlockedTimes = reservationTimes.filter((time) =>
+    const temporarilyBlockedTimes = generatedTimes.filter((time) =>
       timeBlocks.some((block) =>
         isTimeInsideBlock(time, block.start_time, block.end_time),
       ),
@@ -750,6 +800,14 @@ export default function ReservationPage() {
                   <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-500">날짜를 먼저 선택하세요.</div>
                 ) : isLoadingTimes ? (
                   <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-500">예약 가능 시간을 확인하는 중입니다.</div>
+                ) : scheduleMessage ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+                    {scheduleMessage}
+                  </div>
+                ) : reservationTimes.length === 0 ? (
+                  <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-500">
+                    선택 가능한 예약 시간이 없습니다.
+                  </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                     {reservationTimes.map((time) => {
