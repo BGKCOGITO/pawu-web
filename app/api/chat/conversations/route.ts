@@ -2,6 +2,26 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabase-admin";
 import { getAuthUser, readBearer } from "../../../../lib/chat-access";
 
+
+export async function GET(request: Request) {
+  const user = await getAuthUser(readBearer(request));
+  if (!user) {
+    return NextResponse.json({ ok: false, message: "로그인이 필요합니다." }, { status: 401 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("chat_conversations")
+    .select("id,reservation_id,status,last_message_at,last_message_preview,hospitals(name),pets(name)")
+    .eq("guardian_user_id", user.id)
+    .order("last_message_at", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ ok: false, message: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ ok: true, conversations: data ?? [] });
+}
+
 export async function POST(request: Request) {
   const user = await getAuthUser(readBearer(request));
   if (!user) {

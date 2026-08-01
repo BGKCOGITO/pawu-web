@@ -411,3 +411,44 @@ body { background: var(--pawu-canvas); color: var(--pawu-ink); font-family: Aria
     overscroll-behavior-y: none;
   }
 }
+
+/* PAWU V9.5.2 guardian chat shortcut */
+.guardian-chat-fab {
+  position: fixed;
+  right: max(20px, calc((100vw - 760px) / 2 + 20px));
+  bottom: calc(112px + env(safe-area-inset-bottom));
+  z-index: 75;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid rgba(21, 63, 52, .15);
+  border-radius: 999px;
+  background: #153f34;
+  color: white;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 12px 30px rgba(21, 63, 52, .25);
+}
+.guardian-chat-fab.active { background: #d86c57; }
+.guardian-chat-fab-icon { width: 22px; height: 22px; }
+.guardian-chat-fab-icon svg { width: 100%; height: 100%; }
+.guardian-chat-fab strong {
+  position: absolute;
+  top: -7px;
+  right: -5px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border: 2px solid white;
+  border-radius: 999px;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  line-height: 18px;
+  text-align: center;
+}
+@media (max-width: 520px) {
+  .guardian-chat-fab { right: 18px; bottom: calc(105px + env(safe-area-inset-bottom)); }
+}
