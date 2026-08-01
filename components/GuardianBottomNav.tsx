@@ -85,10 +85,36 @@ export default function GuardianBottomNav() {
     }
 
     void loadUnread();
-    const timer = window.setInterval(loadUnread, 15000);
+
+    // 메시지 INSERT를 감지해 배지와 앱 알림을 즉시 갱신합니다.
+    const channel = supabase
+      .channel("guardian-chat-unread-live")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_messages" },
+        () => {
+          if (active) void loadUnread();
+        },
+      )
+      .subscribe();
+
+    // Realtime이 지연되거나 절전 상태에서 복귀하는 경우를 위한 보조 주기입니다.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadUnread();
+    }, 3000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void loadUnread();
+    };
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       active = false;
       window.clearInterval(timer);
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      void supabase.removeChannel(channel);
     };
   }, [pathname]);
 

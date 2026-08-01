@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { hospitalAuthFetch } from "@/lib/hospital-auth-fetch";
+import { supabase } from "@/lib/supabase";
 
 type Conversation = {
   id: number;
@@ -43,10 +44,41 @@ export default function HospitalChatListPage() {
     }
 
     void load();
-    const timer = window.setInterval(load, 15000);
+
+    const channel = supabase
+      .channel("hospital-chat-list-live")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_messages" },
+        () => {
+          if (active) void load();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "chat_conversations" },
+        () => {
+          if (active) void load();
+        },
+      )
+      .subscribe();
+
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, 3000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       active = false;
       window.clearInterval(timer);
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      void supabase.removeChannel(channel);
     };
   }, []);
 
