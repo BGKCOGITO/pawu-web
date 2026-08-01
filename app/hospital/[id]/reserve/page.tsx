@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
@@ -81,7 +81,10 @@ function isTimeInsideBlock(
 export default function ReservationPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const hospitalId = params.id;
+  const changeReservationId = Number(searchParams.get("change"));
+  const isChangeMode = Number.isInteger(changeReservationId) && changeReservationId > 0;
 
   const [user, setUser] = useState<User | null>(null);
   const [guardianName, setGuardianName] = useState("");
@@ -94,6 +97,10 @@ export default function ReservationPage() {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [bookedTimes, setBookedTimes] = useState<string[]>([]);
+  const [visitReason, setVisitReason] = useState("");
+  const [symptoms, setSymptoms] = useState("");
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [completedReservationId, setCompletedReservationId] = useState<number | null>(null);
 
   const [isCheckingUser, setIsCheckingUser] = useState(true);
   const [isLoadingPets, setIsLoadingPets] = useState(true);
@@ -163,7 +170,36 @@ export default function ReservationPage() {
         );
         setPets([]);
       } else {
-        setPets((petsResult.data as Pet[] | null) ?? []);
+        const loadedPets = (petsResult.data as Pet[] | null) ?? [];
+        setPets(loadedPets);
+
+        if (isChangeMode) {
+          const { data: existingReservation, error: existingError } = await supabase
+            .from("reservations")
+            .select("id,pet_id,guardian_name,phone,reservation_date,reservation_time,visit_reason,symptoms,status")
+            .eq("id", changeReservationId)
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (existingError || !existingReservation) {
+            setErrorMessage("변경할 예약 정보를 찾지 못했습니다.");
+          } else if (!["requested", "approved"].includes(existingReservation.status)) {
+            setErrorMessage("현재 상태에서는 예약을 변경할 수 없습니다.");
+          } else {
+            const petId = String(existingReservation.pet_id ?? "");
+            setSelectedPetId(petId);
+            setGuardianName(existingReservation.guardian_name ?? "");
+            setGuardianPhone(existingReservation.phone ?? "");
+            setSelectedDate(existingReservation.reservation_date ?? "");
+            setSelectedTime(normalizeTime(existingReservation.reservation_time ?? ""));
+            setVisitReason(existingReservation.visit_reason ?? "");
+            setSymptoms(existingReservation.symptoms ?? "");
+            if (petId) void loadHealthEvents(petId);
+            if (existingReservation.reservation_date) {
+              void loadBookedTimes(existingReservation.reservation_date);
+            }
+          }
+        }
       }
 
       setIsCheckingUser(false);
@@ -222,13 +258,19 @@ export default function ReservationPage() {
 
     setIsLoadingTimes(true);
 
+    let reservationQuery = supabase
+      .from("reservations")
+      .select("reservation_time")
+      .eq("hospital_id", parsedHospitalId)
+      .eq("reservation_date", date)
+      .in("status", ["requested", "approved"]);
+
+    if (isChangeMode) {
+      reservationQuery = reservationQuery.neq("id", changeReservationId);
+    }
+
     const [reservationResult, timeBlockResult] = await Promise.all([
-      supabase
-        .from("reservations")
-        .select("reservation_time")
-        .eq("hospital_id", parsedHospitalId)
-        .eq("reservation_date", date)
-        .in("status", ["requested", "approved"]),
+      reservationQuery,
       supabase
         .from("hospital_time_blocks")
         .select("start_time, end_time")
@@ -282,7 +324,7 @@ export default function ReservationPage() {
     [healthEvents, selectedEventIds],
   );
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!user) {
@@ -290,16 +332,26 @@ export default function ReservationPage() {
       return;
     }
 
+    setErrorMessage("");
+
+    if (!selectedPetId || !selectedDate || !selectedTime || !visitReason) {
+      setErrorMessage("반려동물, 날짜, 시간, 방문 목적을 모두 확인해 주세요.");
+      return;
+    }
+
+    setShowConfirmation(true);
+  }
+
+  async function handleConfirmReservation() {
+    if (!user) return;
+
     setIsSaving(true);
     setErrorMessage("");
     setNoticeMessage("");
+    setShowConfirmation(false);
 
-    const formData = new FormData(event.currentTarget);
-    const petId = Number(String(formData.get("petId") ?? ""));
-    const guardianName = String(formData.get("guardianName") ?? "").trim();
-    const phone = String(formData.get("phone") ?? "").trim();
-    const visitReason = String(formData.get("visitReason") ?? "");
-    const symptoms = String(formData.get("symptoms") ?? "").trim();
+    const petId = Number(selectedPetId);
+    const phone = guardianPhone.trim();
     const parsedHospitalId = Number(hospitalId);
 
     if (!Number.isInteger(parsedHospitalId)) {
@@ -342,6 +394,7 @@ export default function ReservationPage() {
         .eq("reservation_date", selectedDate)
         .eq("reservation_time", selectedTime)
         .in("status", ["requested", "approved"])
+        .neq("id", isChangeMode ? changeReservationId : -1)
         .limit(1),
       supabase
         .from("hospital_time_blocks")
@@ -380,23 +433,46 @@ export default function ReservationPage() {
       return;
     }
 
-    const { data: reservation, error: reservationError } = await supabase
-      .from("reservations")
-      .insert({
-        hospital_id: parsedHospitalId,
-        user_id: user.id,
-        pet_id: selectedPet.id,
-        pet_name: selectedPet.name,
-        guardian_name: guardianName,
-        phone,
-        reservation_date: selectedDate,
-        reservation_time: selectedTime,
-        visit_reason: visitReason,
-        symptoms: symptoms || null,
-        status: "requested",
-      })
-      .select("id")
-      .single();
+    const reservationPayload = {
+      hospital_id: parsedHospitalId,
+      user_id: user.id,
+      pet_id: selectedPet.id,
+      pet_name: selectedPet.name,
+      guardian_name: guardianName.trim(),
+      phone,
+      reservation_date: selectedDate,
+      reservation_time: selectedTime,
+      visit_reason: visitReason,
+      symptoms: symptoms.trim() || null,
+      status: "requested",
+    };
+
+    const reservationResult = isChangeMode
+      ? await supabase
+          .from("reservations")
+          .update({
+            pet_id: reservationPayload.pet_id,
+            pet_name: reservationPayload.pet_name,
+            guardian_name: reservationPayload.guardian_name,
+            phone: reservationPayload.phone,
+            reservation_date: reservationPayload.reservation_date,
+            reservation_time: reservationPayload.reservation_time,
+            visit_reason: reservationPayload.visit_reason,
+            symptoms: reservationPayload.symptoms,
+            status: "requested",
+          })
+          .eq("id", changeReservationId)
+          .eq("user_id", user.id)
+          .in("status", ["requested", "approved"])
+          .select("id")
+          .single()
+      : await supabase
+          .from("reservations")
+          .insert(reservationPayload)
+          .select("id")
+          .single();
+
+    const { data: reservation, error: reservationError } = reservationResult;
 
     if (reservationError || !reservation) {
       console.error("예약 저장 오류:", reservationError);
@@ -417,7 +493,7 @@ export default function ReservationPage() {
       return;
     }
 
-    if (selectedEvents.length > 0 || symptoms) {
+    if (!isChangeMode && (selectedEvents.length > 0 || symptoms.trim())) {
       const generated = generateVisitPreparationSummary({
         petName: selectedPet.name,
         mainConcern: symptoms,
@@ -433,7 +509,7 @@ export default function ReservationPage() {
           pet_id: selectedPet.id,
           reservation_id: reservation.id,
           title,
-          main_concern: symptoms || null,
+          main_concern: symptoms.trim() || null,
           status: "linked",
           generated_summary: generated.summary,
           generated_timeline: generated.timeline,
@@ -475,6 +551,7 @@ export default function ReservationPage() {
       }
     }
 
+    setCompletedReservationId(reservation.id);
     setSubmitted(true);
     setIsSaving(false);
   }
@@ -517,11 +594,21 @@ export default function ReservationPage() {
           <section className="mt-20 rounded-3xl border border-gray-200 p-8 text-center">
             <div className="text-4xl">✓</div>
             <h1 className="mt-5 text-2xl font-bold">
-              예약 요청을 보냈습니다
+              예약이 완료되었습니다
             </h1>
             <p className="mt-3 text-sm leading-6 text-gray-600">
-              병원이 예약 내용과 선택한 건강기록을 함께 확인합니다.
+              병원 확인 전까지 예약 조회에서 날짜와 시간을 변경하거나 취소할 수 있습니다.
             </p>
+
+
+            <div className="mt-6 rounded-2xl bg-[#f7f5ef] p-5 text-left">
+              <dl className="grid grid-cols-2 gap-4 text-sm">
+                <div><dt className="text-gray-400">예약번호</dt><dd className="mt-1 font-bold">#{completedReservationId ?? "-"}</dd></div>
+                <div><dt className="text-gray-400">상태</dt><dd className="mt-1 font-bold text-amber-700">병원 확인 중</dd></div>
+                <div><dt className="text-gray-400">예약일</dt><dd className="mt-1 font-bold">{selectedDate}</dd></div>
+                <div><dt className="text-gray-400">시간</dt><dd className="mt-1 font-bold">{selectedTime}</dd></div>
+              </dl>
+            </div>
 
             {noticeMessage && (
               <p className="mt-4 rounded-2xl bg-amber-50 p-4 text-left text-sm leading-6 text-amber-800">
@@ -562,7 +649,7 @@ export default function ReservationPage() {
             PAWU 예약 요청
           </p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-[#153f34]">
-            진료 예약
+            {isChangeMode ? "예약 날짜·시간 변경" : "진료 예약"}
           </h1>
           <p className="mt-3 text-sm leading-6 text-gray-600">
             날짜와 시간을 선택하고, 이번 진료와 관련된 건강기록이 있다면 함께 전달하세요.
@@ -657,43 +744,39 @@ export default function ReservationPage() {
                 />
               </label>
 
-              <label>
-                <span className="mb-2 block text-sm font-medium">
-                  희망 시간
-                </span>
-                <select
-                  name="reservationTime"
-                  required
-                  value={selectedTime}
-                  onChange={(event) => setSelectedTime(event.target.value)}
-                  disabled={
-                    !selectedDate ||
-                    isLoadingTimes ||
-                    availableTimeCount === 0
-                  }
-                  className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 disabled:bg-gray-100"
-                >
-                  <option value="" disabled>
-                    {!selectedDate
-                      ? "날짜를 먼저 선택하세요"
-                      : isLoadingTimes
-                        ? "시간 확인 중..."
-                        : availableTimeCount === 0
-                          ? "예약 가능한 시간이 없습니다"
-                          : "시간을 선택하세요"}
-                  </option>
-                  {reservationTimes.map((time) => (
-                    <option
-                      key={time}
-                      value={time}
-                      disabled={bookedTimes.includes(time)}
-                    >
-                      {time}
-                      {bookedTimes.includes(time) ? " · 예약 마감" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="sm:col-span-2">
+                <span className="mb-3 block text-sm font-medium">희망 시간</span>
+                {!selectedDate ? (
+                  <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-500">날짜를 먼저 선택하세요.</div>
+                ) : isLoadingTimes ? (
+                  <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-500">예약 가능 시간을 확인하는 중입니다.</div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                    {reservationTimes.map((time) => {
+                      const unavailable = bookedTimes.includes(time);
+                      const selected = selectedTime === time;
+                      return (
+                        <button
+                          key={time}
+                          type="button"
+                          disabled={unavailable}
+                          onClick={() => setSelectedTime(time)}
+                          className={`min-h-14 rounded-2xl border px-2 py-2 text-sm font-bold transition ${
+                            unavailable
+                              ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                              : selected
+                                ? "border-[#153f34] bg-[#153f34] text-white shadow-sm"
+                                : "border-[#cfdcd6] bg-white text-[#153f34] hover:border-[#153f34]"
+                          }`}
+                        >
+                          <span className="block">{time}</span>
+                          {unavailable && <span className="mt-0.5 block text-[10px] font-medium">예약 마감</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               <label className="sm:col-span-2">
                 <span className="mb-2 block text-sm font-medium">
@@ -702,7 +785,8 @@ export default function ReservationPage() {
                 <select
                   name="visitReason"
                   required
-                  defaultValue=""
+                  value={visitReason}
+                  onChange={(event) => setVisitReason(event.target.value)}
                   className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3"
                 >
                   <option value="" disabled>
@@ -813,6 +897,8 @@ export default function ReservationPage() {
               <span className="ml-2 text-sm text-gray-400">(선택사항)</span>
               <textarea
                 name="symptoms"
+                value={symptoms}
+                onChange={(event) => setSymptoms(event.target.value)}
                 rows={5}
                 placeholder="예: 사료를 바꾼 뒤 설사와 구토가 반복돼요."
                 className="mt-3 w-full resize-none rounded-2xl border border-gray-300 bg-white px-4 py-3"
@@ -839,10 +925,30 @@ export default function ReservationPage() {
             }
             className="w-full rounded-2xl bg-[#153f34] px-5 py-4 text-lg font-bold text-white disabled:bg-gray-400"
           >
-            {isSaving ? "예약과 건강기록을 저장하는 중..." : "예약 요청 보내기"}
+            {isSaving ? "예약 정보를 저장하는 중..." : isChangeMode ? "변경 내용 확인" : "예약 내용 확인"}
           </button>
         </form>
       </div>
+
+
+        {showConfirmation && (
+          <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-10 sm:items-center">
+            <section className="w-full max-w-md rounded-[28px] bg-white p-6 shadow-2xl">
+              <p className="text-sm font-bold text-[#d86c57]">예약 내용 확인</p>
+              <h2 className="mt-1 text-2xl font-black text-[#153f34]">이 내용으로 {isChangeMode ? "변경" : "예약"}할까요?</h2>
+              <dl className="mt-5 space-y-3 rounded-2xl bg-[#f7f5ef] p-5 text-sm">
+                <div className="flex justify-between gap-4"><dt className="text-gray-500">반려동물</dt><dd className="text-right font-bold">{pets.find((pet) => String(pet.id) === selectedPetId)?.name ?? "-"}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-gray-500">예약일시</dt><dd className="text-right font-bold">{selectedDate} {selectedTime}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-gray-500">방문 목적</dt><dd className="text-right font-bold">{visitReason}</dd></div>
+                <div className="border-t border-gray-200 pt-3"><dt className="text-gray-500">증상 및 특이사항</dt><dd className="mt-2 whitespace-pre-wrap font-medium leading-6">{symptoms.trim() || "작성된 내용이 없습니다."}</dd></div>
+              </dl>
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <button type="button" onClick={() => setShowConfirmation(false)} className="rounded-2xl border border-gray-300 px-4 py-4 font-bold">다시 확인</button>
+                <button type="button" onClick={() => void handleConfirmReservation()} disabled={isSaving} className="rounded-2xl bg-[#153f34] px-4 py-4 font-bold text-white disabled:bg-gray-400">{isSaving ? "저장 중..." : isChangeMode ? "예약 변경" : "예약 요청"}</button>
+              </div>
+            </section>
+          </div>
+        )}
     </main>
   );
 }

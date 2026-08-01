@@ -215,6 +215,36 @@ function getStatusDescription(status: string) {
   }
 }
 
+function ReservationTimeline({ status }: { status: string }) {
+  const steps = [
+    { key: "requested", label: "예약 요청" },
+    { key: "approved", label: "병원 승인" },
+    { key: "in_progress", label: "진료 진행" },
+    { key: "completed", label: "진료 완료" },
+  ];
+  const statusIndex: Record<string, number> = { requested: 0, approved: 1, in_progress: 2, completed: 3 };
+  const currentIndex = statusIndex[status] ?? -1;
+  const stopped = ["rejected", "cancelled", "no_show"].includes(status);
+
+  return (
+    <div className="mt-5 rounded-2xl bg-[#f7f5ef] p-4">
+      <p className="text-sm font-bold text-[#153f34]">예약 진행상태</p>
+      <div className="mt-4 grid grid-cols-4 gap-1">
+        {steps.map((step, index) => {
+          const active = !stopped && index <= currentIndex;
+          return (
+            <div key={step.key} className="text-center">
+              <div className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-xs font-black ${active ? "bg-[#153f34] text-white" : "bg-gray-200 text-gray-500"}`}>{active ? "✓" : index + 1}</div>
+              <p className={`mt-2 text-[11px] font-semibold ${active ? "text-[#153f34]" : "text-gray-400"}`}>{step.label}</p>
+            </div>
+          );
+        })}
+      </div>
+      {stopped && <p className="mt-3 rounded-xl bg-white p-3 text-center text-xs font-semibold text-gray-600">{getStatusLabel(status)} 상태로 진행이 종료되었습니다.</p>}
+    </div>
+  );
+}
+
 function getVisitReasonLabel(reason: string) {
   switch (reason) {
     case "general":
@@ -368,6 +398,7 @@ export default function MyReservationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [cancellingReservationId, setCancellingReservationId] =
     useState<number | null>(null);
+  const [cancelTargetId, setCancelTargetId] = useState<number | null>(null);
   const [selectedMedicalRecord, setSelectedMedicalRecord] =
     useState<SelectedMedicalRecord | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -541,12 +572,6 @@ export default function MyReservationsPage() {
 
   async function handleCancelReservation(reservationId: number) {
     if (!user) return;
-
-    const shouldCancel = window.confirm(
-      "이 예약을 정말 취소하시겠습니까?"
-    );
-
-    if (!shouldCancel) return;
 
     setCancellingReservationId(reservationId);
     setErrorMessage("");
@@ -771,6 +796,8 @@ export default function MyReservationsPage() {
                         {getStatusDescription(reservation.status)}
                       </p>
 
+                      <ReservationTimeline status={reservation.status} />
+
                       <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <dt className="text-gray-400">희망 날짜</dt>
@@ -846,11 +873,18 @@ export default function MyReservationsPage() {
                       )}
 
                       {canCancel && (
+                        <Link
+                          href={`/hospital/${reservation.hospital_id}/reserve?change=${reservation.id}`}
+                          className="mt-5 block w-full rounded-2xl bg-[#153f34] px-4 py-3 text-center text-sm font-semibold text-white"
+                        >
+                          날짜·시간 변경
+                        </Link>
+                      )}
+
+                      {canCancel && (
                         <button
                           type="button"
-                          onClick={() =>
-                            handleCancelReservation(reservation.id)
-                          }
+                          onClick={() => setCancelTargetId(reservation.id)}
                           disabled={
                             isCancelling ||
                             cancellingReservationId !== null
@@ -877,6 +911,21 @@ export default function MyReservationsPage() {
           )}
         </div>
       </main>
+
+
+      {cancelTargetId !== null && (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-10 sm:items-center">
+          <section className="w-full max-w-md rounded-[28px] bg-white p-6 shadow-2xl">
+            <p className="text-sm font-bold text-red-600">예약 취소</p>
+            <h2 className="mt-1 text-2xl font-black">예약을 취소할까요?</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-600">취소 후에는 병원에서 이 예약을 확인할 수 없으며, 다시 예약하려면 새로 신청해야 합니다.</p>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setCancelTargetId(null)} className="rounded-2xl border border-gray-300 px-4 py-4 font-bold">유지하기</button>
+              <button type="button" onClick={() => { const id = cancelTargetId; setCancelTargetId(null); void handleCancelReservation(id); }} className="rounded-2xl bg-red-600 px-4 py-4 font-bold text-white">예약 취소</button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {selectedMedicalRecord && (
         <div
