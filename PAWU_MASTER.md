@@ -59,3 +59,10 @@ PAWU는 보호자와 동물병원을 연결하는 반려동물 병원 예약·�
 - `SUPABASE_SERVICE_ROLE_KEY`는 서버 전용이며 클라이언트에 노출하지 않는다.
 - Firebase 서비스 계정 JSON은 `FIREBASE_SERVICE_ACCOUNT_JSON` 서버 환경변수로만 등록한다. 서비스 계정 JSON 파일 자체를 프로젝트나 Git에 포함하지 않는다.
 - Firebase 웹 설정 7개는 `.env.local`과 Vercel에 동일하게 등록하며, 운영 푸시는 HTTPS Production에서 최종 확인한다.
+
+## 9. 성능 및 실시간 처리 원칙
+- 채팅 메시지 수신은 짧은 주기의 전체 목록 polling보다 Supabase Realtime의 신규 행 이벤트를 우선한다.
+- 앱이 백그라운드 또는 종료 상태일 때 알림은 Firebase FCM이 담당하며 브라우저 반복 조회로 대체하지 않는다.
+- 동일 API 요청이 진행 중이면 같은 요청을 중복 실행하지 않는다.
+- 화면 복귀 시에는 해당 화면에 필요한 데이터만 한 번 동기화한다.
+- Realtime 적용 시 기존 채팅 저장 API, 권한 검사, FCM 발송 로직은 임의로 변경하지 않는다.

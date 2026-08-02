@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { hospitalAuthFetch } from "@/lib/hospital-auth-fetch";
+import { supabase } from "@/lib/supabase";
 
 type Conversation = {
   id: number;
@@ -25,28 +26,56 @@ export default function HospitalChatListPage() {
   const [items, setItems] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const requestInFlightRef = useRef(false);
+  const refreshTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
 
     async function load() {
+      if (requestInFlightRef.current) return;
+      requestInFlightRef.current = true;
       try {
         const response = await hospitalAuthFetch("/api/hospital/chat/conversations", { cache: "no-store" });
         const result = await response.json();
         if (!response.ok) throw new Error(result.message ?? "채팅 목록을 불러오지 못했습니다.");
-        if (active) setItems((result.conversations ?? []) as Conversation[]);
+        if (active) {
+          setItems((result.conversations ?? []) as Conversation[]);
+          setError("");
+        }
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : "채팅 목록을 불러오지 못했습니다.");
       } finally {
+        requestInFlightRef.current = false;
         if (active) setLoading(false);
       }
     }
 
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = window.setTimeout(() => void load(), 250);
+    };
+
+    const channel = supabase
+      .channel("pawu-hospital-chat-list")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, scheduleRefresh)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_conversations" }, scheduleRefresh)
+      .subscribe();
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+
     void load();
-    const timer = window.setInterval(load, 15000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenVisible);
+
     return () => {
       active = false;
-      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenVisible);
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+      void supabase.removeChannel(channel);
     };
   }, []);
 

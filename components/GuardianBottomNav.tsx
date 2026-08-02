@@ -28,69 +28,70 @@ const items = [
 export default function GuardianBottomNav() {
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
-  const previousUnreadRef = useRef<number | null>(null);
+  const requestInFlightRef = useRef(false);
 
   useEffect(() => {
     let active = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     async function loadUnread() {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      if (!token) {
-        if (active) setUnreadCount(0);
-        return;
-      }
-
-      const response = await fetch("/api/chat/unread-count", {
-        headers: { authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      const result = await response.json().catch(() => ({ count: 0 }));
-      const nextCount = Number(result.count) || 0;
-
-      if (active && previousUnreadRef.current !== null && nextCount > previousUnreadRef.current) {
-        try {
-          if (typeof Notification !== "undefined" && Notification.permission === "granted" && "serviceWorker" in navigator) {
-            const registration = await navigator.serviceWorker.ready;
-            await registration.showNotification("PAWU 새 병원 메시지", {
-              body: "병원에서 새 채팅 메시지를 보냈습니다.",
-              icon: "/icons/pawu-v903-192.png",
-              badge: "/icons/pawu-v903-192.png",
-              tag: "pawu-chat-message",
-              data: { url: "/chat" },
-              vibrate: [180, 80, 180],
-            } as NotificationOptions);
-          }
-
-          const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-          if (AudioContextClass) {
-            const context = new AudioContextClass();
-            const oscillator = context.createOscillator();
-            const gain = context.createGain();
-            oscillator.frequency.value = 880;
-            gain.gain.setValueAtTime(0.08, context.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.3);
-            oscillator.connect(gain);
-            gain.connect(context.destination);
-            oscillator.start();
-            oscillator.stop(context.currentTime + 0.3);
-          }
-        } catch {
-          // 알림/소리 재생이 차단되어도 배지 갱신은 계속합니다.
+      if (requestInFlightRef.current) return;
+      requestInFlightRef.current = true;
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) {
+          if (active) setUnreadCount(0);
+          return;
         }
-      }
 
-      previousUnreadRef.current = nextCount;
-      if (active) setUnreadCount(nextCount);
+        const response = await fetch("/api/chat/unread-count", {
+          headers: { authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        const result = await response.json().catch(() => ({ count: 0 }));
+        if (active) setUnreadCount(Number(result.count) || 0);
+      } finally {
+        requestInFlightRef.current = false;
+      }
     }
 
+    async function connectRealtime() {
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session?.user.id;
+      if (!userId || !active) return;
+
+      channel = supabase
+        .channel(`pawu-guardian-notifications-${userId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+          (payload) => {
+            const notification = payload.new as { type?: string };
+            if (notification.type === "chat_message") setUnreadCount((count) => count + 1);
+          },
+        )
+        .subscribe();
+    }
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadUnread();
+    };
+
     void loadUnread();
-    const timer = window.setInterval(loadUnread, 15000);
+    void connectRealtime();
+    window.addEventListener("pawu:chat-read", loadUnread);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenVisible);
+
     return () => {
       active = false;
-      window.clearInterval(timer);
+      window.removeEventListener("pawu:chat-read", loadUnread);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenVisible);
+      if (channel) void supabase.removeChannel(channel);
     };
-  }, [pathname]);
+  }, []);
 
   return (
     <>

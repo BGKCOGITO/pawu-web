@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { HospitalPage, StatCard } from "../../../components/hospital/HospitalPageUI";
 import { supabase } from "../../../lib/supabase";
 import { waitingPriorityLabel, waitingStatusLabel, type WaitingStatus } from "../../../lib/v6-5-6-reception-types";
@@ -11,10 +11,17 @@ function minutes(iso?: string) { return iso ? Math.max(0, Math.floor((Date.now()
 export default function ReceptionPage() {
   const [date, setDate] = useState(today()); const [entries, setEntries] = useState<any[]>([]); const [reservations, setReservations] = useState<any[]>([]);
   const [message, setMessage] = useState(""); const [busy, setBusy] = useState(false);
+  const requestInFlightRef = useRef(false); const refreshTimerRef = useRef<number | null>(null);
   const [form, setForm] = useState({ petName: "", guardianName: "", phone: "", visitReason: "", priority: "normal" });
   async function token() { return (await supabase.auth.getSession()).data.session?.access_token ?? ""; }
-  async function load() { const t = await token(); const r = await fetch(`/api/hospital/reception?date=${date}`, { headers: { authorization: `Bearer ${t}` } }); const j = await r.json(); if (!r.ok) return setMessage(j.message); setEntries(j.entries); setReservations(j.reservations); setMessage(""); }
-  useEffect(() => { void load(); const id = setInterval(() => void load(), 15000); return () => clearInterval(id); }, [date]);
+  async function load() { if (requestInFlightRef.current) return; requestInFlightRef.current = true; try { const t = await token(); const r = await fetch(`/api/hospital/reception?date=${date}`, { headers: { authorization: `Bearer ${t}` } }); const j = await r.json(); if (!r.ok) return setMessage(j.message); setEntries(j.entries); setReservations(j.reservations); setMessage(""); } finally { requestInFlightRef.current = false; } }
+  useEffect(() => {
+    const scheduleRefresh = () => { if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current); refreshTimerRef.current = window.setTimeout(() => void load(), 250); };
+    const channel = supabase.channel(`pawu-reception-${date}`).on("postgres_changes", { event: "*", schema: "public", table: "hospital_waiting_entries" }, scheduleRefresh).subscribe();
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") void load(); };
+    void load(); document.addEventListener("visibilitychange", refreshWhenVisible); window.addEventListener("focus", refreshWhenVisible);
+    return () => { document.removeEventListener("visibilitychange", refreshWhenVisible); window.removeEventListener("focus", refreshWhenVisible); if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current); void supabase.removeChannel(channel); };
+  }, [date]);
   async function post(body: any) { setBusy(true); const t = await token(); const r = await fetch("/api/hospital/reception", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${t}` }, body: JSON.stringify({ waitingDate: date, ...body }) }); const j = await r.json(); setBusy(false); if (!r.ok) return setMessage(j.message); setForm({ petName: "", guardianName: "", phone: "", visitReason: "", priority: "normal" }); await load(); }
   async function patch(entry: any, body: any) { const t = await token(); const r = await fetch("/api/hospital/reception", { method: "PATCH", headers: { "content-type": "application/json", authorization: `Bearer ${t}` }, body: JSON.stringify({ id: entry.id, callCount: entry.call_count, ...body }) }); const j = await r.json(); if (!r.ok) return setMessage(j.message); await load(); }
   const count = (s: string) => entries.filter((e) => e.status === s).length;
