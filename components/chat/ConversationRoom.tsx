@@ -193,45 +193,10 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
   }, [conversationId, mode]);
 
   useEffect(() => {
-    let active = true;
     void load();
-
-    // 새 메시지는 Supabase Realtime으로 즉시 반영합니다.
-    const channel = supabase
-      .channel(`pawu-chat-room-${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        () => {
-          if (active) void load(true);
-        },
-      )
-      .subscribe();
-
-    // Realtime 연결이 잠시 끊겨도 최대 2초 안에 동기화되도록 보조 조회합니다.
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void load(true);
-    }, 2000);
-
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") void load(true);
-    };
-    window.addEventListener("focus", handleVisibility);
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-      window.removeEventListener("focus", handleVisibility);
-      document.removeEventListener("visibilitychange", handleVisibility);
-      void supabase.removeChannel(channel);
-    };
-  }, [conversationId, load]);
+    const timer = window.setInterval(() => void load(true), 5000);
+    return () => window.clearInterval(timer);
+  }, [load]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
 
