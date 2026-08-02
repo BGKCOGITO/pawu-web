@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type CareItem = {
@@ -52,19 +52,40 @@ function isActivePrescription(item: any, today: string) {
   return !endDate || endDate >= today;
 }
 
+const HOME_CACHE_TTL_MS = 60_000;
+
 export default function HomeCareSummary() {
   const [items, setItems] = useState<CareItem[]>([]);
+  const lastLoadedAtRef = useRef(0);
 
   useEffect(() => {
     let mounted = true;
 
-    async function load() {
-      const { data: auth } = await supabase.auth.getUser();
-      const user = auth.user;
+    async function load(force = false) {
+      if (!force && Date.now() - lastLoadedAtRef.current < HOME_CACHE_TTL_MS) return;
+
+      const { data: auth } = await supabase.auth.getSession();
+      const user = auth.session?.user;
 
       if (!user) {
         if (mounted) setItems([]);
         return;
+      }
+
+      const cacheKey = `pawu-home-care-v960:${user.id}`;
+      if (!force) {
+        try {
+          const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null") as
+            | { savedAt: number; items: CareItem[] }
+            | null;
+          if (cached && Date.now() - cached.savedAt < HOME_CACHE_TTL_MS) {
+            lastLoadedAtRef.current = cached.savedAt;
+            if (mounted) setItems(cached.items);
+            return;
+          }
+        } catch {
+          sessionStorage.removeItem(cacheKey);
+        }
       }
 
       const today = new Date().toISOString().slice(0, 10);
@@ -229,12 +250,19 @@ export default function HomeCareSummary() {
         });
       }
 
+      const savedAt = Date.now();
+      lastLoadedAtRef.current = savedAt;
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt, items: next }));
+      } catch {
+        // 저장 공간이 부족해도 화면 데이터는 정상 표시합니다.
+      }
       if (mounted) setItems(next);
     }
 
     void load();
 
-    const handleFocus = () => void load();
+    const handleFocus = () => void load(false);
     window.addEventListener("focus", handleFocus);
 
     return () => {

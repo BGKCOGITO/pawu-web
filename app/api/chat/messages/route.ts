@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       mime_type: body.mimeType ?? null,
       file_size: body.fileSize ?? null,
     })
-    .select("id, created_at")
+    .select("id,sender_user_id,sender_type,message_type,content,created_at")
     .single();
 
   if (error || !created) {
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, messageId: created.id });
+  return NextResponse.json({ ok: true, messageId: created.id, message: created });
 }
 
 export async function PATCH(request: Request) {

@@ -25,9 +25,12 @@ export default function PwaBridge() {
     setInstalled(isStandaloneMode());
 
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch((error) => {
-        console.error("PAWU service worker registration failed", error);
-      });
+      navigator.serviceWorker
+        .register("/sw.js", { updateViaCache: "none" })
+        .then((registration) => registration.update())
+        .catch((error) => {
+          console.error("PAWU service worker registration failed", error);
+        });
     }
 
     const onBeforeInstall = (event: Event) => {
