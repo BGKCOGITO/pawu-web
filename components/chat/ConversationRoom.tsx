@@ -174,6 +174,8 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
   const loadInFlightRef = useRef<Promise<void> | null>(null);
   const lastRefreshAtRef = useRef(0);
   const userIdRef = useRef("");
+  const lastMessageIdRef = useRef(0);
+  const deltaInFlightRef = useRef(false);
 
   const markAsRead = useCallback(async () => {
     try {
@@ -198,7 +200,9 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
         const result = await response.json();
         if (!response.ok) throw new Error(result.message);
         setConversation(result.conversation);
-        setMessages(result.messages ?? []);
+        const loadedMessages = (result.messages ?? []) as Message[];
+        setMessages(loadedMessages);
+        lastMessageIdRef.current = loadedMessages.length ? Math.max(...loadedMessages.map((message) => Number(message.id) || 0)) : 0;
         setContext(result.context ?? null);
         setActorType(result.actorType ?? mode);
         const nextUserId = result.userId ?? "";
@@ -229,6 +233,7 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
         { event: "INSERT", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` },
         (payload) => {
           const incoming = payload.new as Message;
+          lastMessageIdRef.current = Math.max(lastMessageIdRef.current, Number(incoming.id) || 0);
           setMessages((current) => current.some((message) => message.id === incoming.id) ? current : [...current, incoming]);
           if (incoming.sender_user_id !== userIdRef.current) void markAsRead();
         },
@@ -241,6 +246,36 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
       void load(true);
     };
 
+    const syncNewMessages = async () => {
+      if (document.visibilityState !== "visible" || deltaInFlightRef.current) return;
+      deltaInFlightRef.current = true;
+      try {
+        const response = await authFetch(`/api/chat/messages?conversationId=${conversationId}&afterId=${lastMessageIdRef.current}`);
+        const result = await response.json();
+        if (!response.ok) return;
+        const incomingMessages = (result.messages ?? []) as Message[];
+        if (incomingMessages.length === 0) return;
+
+        lastMessageIdRef.current = Math.max(
+          lastMessageIdRef.current,
+          ...incomingMessages.map((message) => Number(message.id) || 0),
+        );
+        setMessages((current) => {
+          const known = new Set(current.map((message) => message.id));
+          return [...current, ...incomingMessages.filter((message) => !known.has(message.id))];
+        });
+        if (incomingMessages.some((message) => message.sender_user_id !== userIdRef.current)) {
+          void markAsRead();
+        }
+      } catch {
+        // Realtime 연결이 잠시 끊겨도 다음 동기화에서 다시 받습니다.
+      } finally {
+        deltaInFlightRef.current = false;
+      }
+    };
+
+    const deltaTimer = window.setInterval(() => void syncNewMessages(), 2500);
+
     document.addEventListener("visibilitychange", refreshIfNeeded);
     window.addEventListener("focus", refreshIfNeeded);
     window.addEventListener("pageshow", refreshIfNeeded);
@@ -249,6 +284,7 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
       document.removeEventListener("visibilitychange", refreshIfNeeded);
       window.removeEventListener("focus", refreshIfNeeded);
       window.removeEventListener("pageshow", refreshIfNeeded);
+      window.clearInterval(deltaTimer);
       void supabase.removeChannel(channel);
     };
   }, [conversationId, load, markAsRead]);
@@ -267,6 +303,7 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
       setContent("");
       const createdMessage = result.message as Message | undefined;
       if (createdMessage) {
+        lastMessageIdRef.current = Math.max(lastMessageIdRef.current, Number(createdMessage.id) || 0);
         setMessages((current) => current.some((message) => message.id === createdMessage.id) ? current : [...current, createdMessage]);
       }
     } catch (sendError) {

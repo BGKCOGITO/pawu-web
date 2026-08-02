@@ -7,6 +7,41 @@ import {
 } from "../../../../lib/chat-access";
 import { sendGuardianChatPush } from "../../../../lib/push/fcm-admin";
 
+
+export async function GET(request: Request) {
+  const user = await getAuthUser(readBearer(request));
+  if (!user) {
+    return NextResponse.json({ ok: false, message: "로그인이 필요합니다." }, { status: 401 });
+  }
+
+  const url = new URL(request.url);
+  const conversationId = Number(url.searchParams.get("conversationId"));
+  const afterId = Math.max(0, Number(url.searchParams.get("afterId") ?? 0));
+
+  if (!Number.isInteger(conversationId)) {
+    return NextResponse.json({ ok: false, message: "채팅방 정보가 올바르지 않습니다." }, { status: 400 });
+  }
+
+  const access = await canAccessConversation(conversationId, user.id);
+  if (!access) {
+    return NextResponse.json({ ok: false, message: "채팅방 접근 권한이 없습니다." }, { status: 403 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("chat_messages")
+    .select("id,sender_user_id,sender_type,message_type,content,created_at")
+    .eq("conversation_id", conversationId)
+    .gt("id", afterId)
+    .order("id", { ascending: true })
+    .limit(100);
+
+  if (error) {
+    return NextResponse.json({ ok: false, message: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ ok: true, messages: data ?? [] });
+}
+
 export async function POST(request: Request) {
   const user = await getAuthUser(readBearer(request));
   if (!user) {

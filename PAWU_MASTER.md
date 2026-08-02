@@ -64,3 +64,9 @@ PAWU는 보호자와 동물병원을 연결하는 반려동물 병원 예약·�
 - `SUPABASE_SERVICE_ROLE_KEY`와 `FIREBASE_SERVICE_ACCOUNT_JSON`은 서버 전용이며 클라이언트에 노출하지 않는다.
 - 서비스 계정 JSON 파일 자체를 프로젝트나 Git에 포함하지 않는다.
 - Realtime 최적화는 Supabase Realtime publication 및 RLS 정책을 유지한 상태에서 적용한다.
+
+## 채팅 실시간 수신 안정성 원칙
+- Supabase Realtime을 기본 수신 경로로 사용한다.
+- 모바일 네트워크·PWA 절전·Realtime 구독 누락에 대비해 화면이 보이는 동안 마지막 메시지 ID 이후 데이터만 경량 동기화할 수 있다.
+- 전체 대화 목록을 주기적으로 다시 조회하는 방식은 사용하지 않는다.
+- 백그라운드에서는 반복 조회하지 않고 FCM 푸시를 사용한다.
