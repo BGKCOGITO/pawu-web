@@ -25,7 +25,7 @@ export default function PwaBridge() {
     setInstalled(isStandaloneMode());
 
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch((error) => {
+      navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" }).catch((error) => {
         console.error("PAWU service worker registration failed", error);
       });
     }

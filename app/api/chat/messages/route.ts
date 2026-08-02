@@ -5,6 +5,7 @@ import {
   getAuthUser,
   readBearer,
 } from "../../../../lib/chat-access";
+import { sendGuardianChatPush } from "../../../../lib/push/fcm-admin";
 
 export async function POST(request: Request) {
   const user = await getAuthUser(readBearer(request));
@@ -107,6 +108,17 @@ export async function POST(request: Request) {
           link_url: `/chat/${conversationId}`,
           metadata: { conversation_id: conversationId, hospital_id: conversation?.hospital_id },
         });
+
+        try {
+          await sendGuardianChatPush(guardianUserId, {
+            title: "PAWU 새 병원 메시지",
+            body: "병원에서 새 메시지가 도착했습니다.",
+            url: `/chat/${conversationId}`,
+            tag: `pawu-chat-${conversationId}`,
+          });
+        } catch (pushError) {
+          console.error("PAWU FCM push failed", pushError);
+        }
       }
     }
   }
