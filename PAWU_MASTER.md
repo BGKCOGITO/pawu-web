@@ -9,7 +9,8 @@ PAWU는 보호자와 동물병원을 연결하는 반려동물 병원 예약·�
 - Supabase Auth, PostgreSQL, Storage, Realtime
 - Vercel 배포
 - PWA(Service Worker)
-- Firebase Cloud Messaging(웹 푸시, V9.6.1부터)
+- Firebase Cloud Messaging 웹 푸시
+- Solapi 문자 발송
 
 ## 3. 주요 폴더 구조
 - `app/`: 화면과 API Route
@@ -28,41 +29,38 @@ PAWU는 보호자와 동물병원을 연결하는 반려동물 병원 예약·�
 - `chat_messages`: 채팅 메시지
 - `notifications`: 앱 내부 알림
 - `notification_preferences`: 사용자별 알림 설정
-- `fcm_tokens`: 사용자별 휴대폰 FCM 토큰(V9.6.1)
+- `fcm_tokens`: 사용자별 휴대폰 FCM 토큰
 - 진료기록/처방/입원 관련 테이블은 반려동물 및 예약/병원과 연결
 
 ## 5. 확정 기능과 정책
 - 보호자 예약, 병원 승인/거절/완료/취소
 - 병원 및 보호자 채팅
 - 보호자 반려동물 정보와 병원 진료정보 연동
-- 병원 DB 10,588건 및 external_id 중복 방지
+- 병원 DB 10,588건 및 `external_id` 중복 방지
 - 병원 영업/폐업/휴업 상태 관리
-- 푸시 알림 내용은 개인정보 보호를 위해 메시지 본문을 노출하지 않고 `병원에서 새 메시지가 도착했습니다.`로 표시
+- 앱 종료·잠금 상태에서도 FCM 채팅 푸시 수신
+- 푸시에는 메시지 본문을 노출하지 않고 `병원에서 새 메시지가 도착했습니다.`만 표시
 
 ## 6. 변경하면 안 되는 기존 원칙
-- 정상 작동 중인 예약·채팅·진료·반려동물 기능을 임의로 재구현하지 않는다.
-- 기존 데이터와 예약 데이터는 삭제하지 않는다.
-- 병원 DB import 시 external_id 중복을 만들지 않는다.
-- 긴 코드 조각보다 변경 파일만 원래 경로대로 담은 패치 ZIP을 우선한다. 전체 기준 확인이 필요한 경우에만 최신 전체 ZIP을 사용한다.
+- 정상 작동 중인 예약·채팅·진료·반려동물·FCM 기능을 임의로 재구현하지 않는다.
+- 기존 데이터와 예약 데이터를 삭제하지 않는다.
+- 병원 DB import 시 `external_id` 중복을 만들지 않는다.
+- 긴 코드 조각보다 변경 파일만 원래 경로대로 담은 패치 ZIP을 우선한다.
 - 기능 변경 전 프로젝트 문서와 실제 코드를 비교한다.
+- 성능 개선은 반복 조회와 중복 요청을 줄이는 최소 변경 방식으로 진행한다.
 
 ## 7. 개발 및 파일 수정 규칙
 - 새 버전마다 `PAWU_MASTER.md`, `PROJECT_STATUS.md`, `CHANGELOG.md`를 갱신한다.
 - 마지막 수정 파일 목록과 사용자 테스트 항목을 `PROJECT_STATUS.md`에 기록한다.
 - 채팅 한계가 가까우면 추가 작업보다 문서 저장과 ZIP 생성을 우선한다.
 - 기존 구현을 바꿀 때는 영향을 명시하고 가능한 최소 범위만 수정한다.
+- 서버 응답 형식을 변경할 때 기존 호출 화면과 호환성을 확인한다.
 
 ## 8. 배포·환경변수·Supabase 중요사항
 - `.env.local`은 교체본 덮어쓰기에서 보존한다.
 - Vercel에도 동일한 환경변수를 등록한다.
+- Firebase 환경변수 8개는 Vercel Production/Preview에 등록되어 있으며 운영 푸시 수신을 확인했다.
 - Supabase migration은 운영 DB에 한 번만 실행한다.
-- `SUPABASE_SERVICE_ROLE_KEY`는 서버 전용이며 클라이언트에 노출하지 않는다.
-- Firebase 서비스 계정 JSON은 `FIREBASE_SERVICE_ACCOUNT_JSON` 서버 환경변수로만 등록한다. 서비스 계정 JSON 파일 자체를 프로젝트나 Git에 포함하지 않는다.
-- Firebase 웹 설정 7개는 `.env.local`과 Vercel에 동일하게 등록하며, 운영 푸시는 HTTPS Production에서 최종 확인한다.
-
-## 9. 성능 및 실시간 처리 원칙
-- 채팅 메시지 수신은 짧은 주기의 전체 목록 polling보다 Supabase Realtime의 신규 행 이벤트를 우선한다.
-- 앱이 백그라운드 또는 종료 상태일 때 알림은 Firebase FCM이 담당하며 브라우저 반복 조회로 대체하지 않는다.
-- 동일 API 요청이 진행 중이면 같은 요청을 중복 실행하지 않는다.
-- 화면 복귀 시에는 해당 화면에 필요한 데이터만 한 번 동기화한다.
-- Realtime 적용 시 기존 채팅 저장 API, 권한 검사, FCM 발송 로직은 임의로 변경하지 않는다.
+- `SUPABASE_SERVICE_ROLE_KEY`와 `FIREBASE_SERVICE_ACCOUNT_JSON`은 서버 전용이며 클라이언트에 노출하지 않는다.
+- 서비스 계정 JSON 파일 자체를 프로젝트나 Git에 포함하지 않는다.
+- Realtime 최적화는 Supabase Realtime publication 및 RLS 정책을 유지한 상태에서 적용한다.
