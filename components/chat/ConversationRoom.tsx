@@ -171,19 +171,6 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
   const [error, setError] = useState("");
   const [showInfo, setShowInfo] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
-  const loadedRef = useRef(false);
-
-  const markRead = useCallback(async () => {
-    try {
-      await authFetch("/api/chat/messages", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ conversationId }),
-      });
-    } catch {
-      // 읽음 처리는 다음 화면 복귀 또는 실시간 수신 시 다시 시도합니다.
-    }
-  }, [conversationId]);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -197,50 +184,19 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
       setActorType(result.actorType ?? mode);
       setUserId(result.userId ?? "");
       setError("");
-      loadedRef.current = true;
-      void markRead();
+      await authFetch("/api/chat/messages", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId }) });
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "채팅을 불러오지 못했습니다.");
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [conversationId, markRead, mode]);
+  }, [conversationId, mode]);
 
   useEffect(() => {
     void load();
-
-    const channel = supabase
-      .channel(`chat-room-${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const incoming = payload.new as Message;
-          setMessages((current) =>
-            current.some((message) => message.id === incoming.id)
-              ? current
-              : [...current, incoming],
-          );
-          void markRead();
-        },
-      )
-      .subscribe();
-
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible" && loadedRef.current) void load(true);
-    };
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-
-    return () => {
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-      void supabase.removeChannel(channel);
-    };
-  }, [conversationId, load, markRead]);
+    const timer = window.setInterval(() => void load(true), 5000);
+    return () => window.clearInterval(timer);
+  }, [load]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
 
@@ -254,13 +210,7 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
       const result = await response.json();
       if (!response.ok) throw new Error(result.message);
       setContent("");
-      if (result.message) {
-        setMessages((current) =>
-          current.some((message) => message.id === result.message.id)
-            ? current
-            : [...current, result.message as Message],
-        );
-      }
+      await load(true);
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "메시지를 보내지 못했습니다.");
     } finally { setSending(false); }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 function NavIcon({ name }: { name: string }) {
@@ -28,60 +28,69 @@ const items = [
 export default function GuardianBottomNav() {
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
-  const activeRef = useRef(true);
+  const previousUnreadRef = useRef<number | null>(null);
 
-  const loadUnread = useCallback(async () => {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) {
-      if (activeRef.current) setUnreadCount(0);
-      return;
+  useEffect(() => {
+    let active = true;
+
+    async function loadUnread() {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) {
+        if (active) setUnreadCount(0);
+        return;
+      }
+
+      const response = await fetch("/api/chat/unread-count", {
+        headers: { authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const result = await response.json().catch(() => ({ count: 0 }));
+      const nextCount = Number(result.count) || 0;
+
+      if (active && previousUnreadRef.current !== null && nextCount > previousUnreadRef.current) {
+        try {
+          if (typeof Notification !== "undefined" && Notification.permission === "granted" && "serviceWorker" in navigator) {
+            const registration = await navigator.serviceWorker.ready;
+            await registration.showNotification("PAWU 새 병원 메시지", {
+              body: "병원에서 새 채팅 메시지를 보냈습니다.",
+              icon: "/icons/pawu-v903-192.png",
+              badge: "/icons/pawu-v903-192.png",
+              tag: "pawu-chat-message",
+              data: { url: "/chat" },
+              vibrate: [180, 80, 180],
+            } as NotificationOptions);
+          }
+
+          const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+          if (AudioContextClass) {
+            const context = new AudioContextClass();
+            const oscillator = context.createOscillator();
+            const gain = context.createGain();
+            oscillator.frequency.value = 880;
+            gain.gain.setValueAtTime(0.08, context.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.3);
+            oscillator.connect(gain);
+            gain.connect(context.destination);
+            oscillator.start();
+            oscillator.stop(context.currentTime + 0.3);
+          }
+        } catch {
+          // 알림/소리 재생이 차단되어도 배지 갱신은 계속합니다.
+        }
+      }
+
+      previousUnreadRef.current = nextCount;
+      if (active) setUnreadCount(nextCount);
     }
 
-    const response = await fetch("/api/chat/unread-count", {
-      headers: { authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    const result = await response.json().catch(() => ({ count: 0 }));
-    const nextCount = Number(result.count) || 0;
-
-    if (activeRef.current) setUnreadCount(nextCount);
-  }, []);
-
-  useEffect(() => {
-    activeRef.current = true;
     void loadUnread();
-
-    const channel = supabase
-      .channel("guardian-chat-badge")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "chat_messages" },
-        () => void loadUnread(),
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "chat_messages" },
-        () => void loadUnread(),
-      )
-      .subscribe();
-
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void loadUnread();
-    };
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-
+    const timer = window.setInterval(loadUnread, 15000);
     return () => {
-      activeRef.current = false;
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-      void supabase.removeChannel(channel);
+      active = false;
+      window.clearInterval(timer);
     };
-  }, [loadUnread]);
-
-  useEffect(() => {
-    // 채팅방에서 메시지를 읽고 목록으로 돌아온 경우에만 배지를 한 번 동기화합니다.
-    if (!pathname.startsWith("/chat/")) void loadUnread();
-  }, [loadUnread, pathname]);
+  }, [pathname]);
 
   return (
     <>
