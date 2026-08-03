@@ -109,13 +109,20 @@ export default function GuardianBottomNav() {
     };
   }, []);
 
+  const hideFloatingChat =
+    pathname.startsWith("/health-notebook") ||
+    pathname.startsWith("/health-insights") ||
+    /\/pets\/[^/]+\/events\/(new|[^/]+\/edit)/.test(pathname);
+
   return (
     <>
-      <Link href="/chat" className={`guardian-chat-fab ${pathname.startsWith("/chat") ? "active" : ""}`} aria-label="병원 채팅">
-        <span className="guardian-chat-fab-icon"><NavIcon name="chat" /></span>
-        <span>채팅</span>
-        {unreadCount > 0 && <strong>{unreadCount > 99 ? "99+" : unreadCount}</strong>}
-      </Link>
+      {!hideFloatingChat && (
+        <Link href="/chat" className={`guardian-chat-fab ${pathname.startsWith("/chat") ? "active" : ""}`} aria-label="병원 채팅" title="병원 채팅">
+          <span className="guardian-chat-fab-icon"><NavIcon name="chat" /></span>
+          <span className="sr-only">채팅</span>
+          {unreadCount > 0 && <strong>{unreadCount > 99 ? "99+" : unreadCount}</strong>}
+        </Link>
+      )}
 
       <nav className="guardian-bottom-nav"><div className="guardian-bottom-nav-inner">{items.map((item) => {
         const active = item.href === "/" ? pathname === "/" || pathname === "/dashboard" : pathname.startsWith(item.href);

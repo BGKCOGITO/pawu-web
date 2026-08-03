@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "PAWU",
     short_name: "PAWU",
     description: "반려동물 병원 예약과 건강관리 서비스",
-    start_url: "/?source=pwa&v=9.0.3",
+    start_url: "/?source=pwa&v=10.0.0-rc1",
     scope: "/",
     display: "standalone",
     display_override: ["window-controls-overlay", "standalone"],

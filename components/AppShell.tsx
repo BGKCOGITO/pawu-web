@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import GuardianBottomNav from "./GuardianBottomNav";
 import GuardianTopBar from "./GuardianTopBar";
 import RoutePrefetcher from "./navigation/RoutePrefetcher";
+import NetworkStatusBanner from "./system/NetworkStatusBanner";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -20,17 +21,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
    * 최상위 Shell에서 메뉴를 추가하면 병원 사이드바가 이중으로 표시됩니다.
    */
   if (isHospitalAdmin || isSuperAdmin || isMasterAdmin) {
-    return <><RoutePrefetcher />{children}</>;
+    return <><RoutePrefetcher /><NetworkStatusBanner />{children}</>;
   }
 
   if (isAuth) {
-    return <><RoutePrefetcher /><div className="min-h-screen bg-[#f4f0e8]">{children}</div></>;
+    return <><RoutePrefetcher /><NetworkStatusBanner /><div className="min-h-screen bg-[#f4f0e8]">{children}</div></>;
   }
 
   if (isMap) {
     return (
       <div className="min-h-screen bg-[#f4f0e8] text-[#19332d]">
         <RoutePrefetcher />
+        <NetworkStatusBanner />
         {children}
         <GuardianBottomNav />
       </div>
@@ -40,6 +42,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="guardian-app-shell">
       <RoutePrefetcher />
+      <NetworkStatusBanner />
       <div className="guardian-app-frame">
         <GuardianTopBar />
         <div className="guardian-page-content">{children}</div>

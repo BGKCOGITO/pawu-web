@@ -218,7 +218,8 @@ function HealthTimelineContent() {
     () => weights.filter((record) => !selectedPetId || record.pet_id === selectedPetId).sort((a, b) => a.measured_at.localeCompare(b.measured_at)),
     [weights, selectedPetId],
   );
-  const graph = buildGraph(petWeights);
+  const visibleWeights = useMemo(() => petWeights.slice(-7), [petWeights]);
+  const graph = buildGraph(visibleWeights);
   const latestWeight = petWeights[petWeights.length - 1];
   const previousWeight = petWeights[petWeights.length - 2];
   const weightDiff = latestWeight && previousWeight ? Number(latestWeight.weight_kg) - Number(previousWeight.weight_kg) : null;
@@ -226,11 +227,12 @@ function HealthTimelineContent() {
   return (
     <main className="min-h-screen bg-[#f7f4ed] pb-28 text-[#153f34]">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-7 sm:py-10">
-        <div className="flex items-center justify-between gap-3">
-          <Link href="/" className="rounded-full border border-[#d9d4c9] bg-white px-4 py-2 text-sm font-bold">← PAWU 홈</Link>
-          <div className="flex gap-2"><Link href="/health-insights" className="rounded-full border border-[#153f34] bg-white px-4 py-2 text-sm font-bold">AI 건강 요약</Link><Link href={selectedPet ? `/pets/${selectedPet.id}/events/new` : "/pets/new"} className="rounded-full bg-[#153f34] px-4 py-2 text-sm font-bold text-white">
+        <div className="grid grid-cols-3 gap-2">
+          <Link href="/" className="flex min-h-11 items-center justify-center rounded-2xl border border-[#d9d4c9] bg-white px-2 py-2 text-center text-xs font-bold sm:text-sm">← 홈</Link>
+          <Link href="/health-insights" className="flex min-h-11 items-center justify-center rounded-2xl border border-[#153f34] bg-white px-2 py-2 text-center text-xs font-bold sm:text-sm">AI 건강 요약</Link>
+          <Link href={selectedPet ? `/pets/${selectedPet.id}/events/new` : "/pets/new"} className="flex min-h-11 items-center justify-center rounded-2xl bg-[#153f34] px-2 py-2 text-center text-xs font-bold text-white sm:text-sm">
             {selectedPet ? "+ 건강 기록" : "+ 아이 등록"}
-          </Link></div>
+          </Link>
         </div>
 
         <header className="mt-7">
@@ -242,11 +244,11 @@ function HealthTimelineContent() {
         </header>
 
         {pets.length > 0 && (
-          <section className="mt-6 flex gap-3 overflow-x-auto pb-2">
+          <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {pets.map((pet) => {
               const active = pet.id === selectedPetId;
               return (
-                <button key={pet.id} type="button" onClick={() => setSelectedPetId(pet.id)} className={`min-w-[168px] rounded-[24px] border p-4 text-left transition ${active ? "border-[#153f34] bg-[#153f34] text-white shadow-lg" : "border-[#ded9ce] bg-white"}`}>
+                <button key={pet.id} type="button" onClick={() => setSelectedPetId(pet.id)} className={`min-w-0 rounded-[24px] border p-4 text-left transition ${active ? "border-[#153f34] bg-[#153f34] text-white shadow-lg" : "border-[#ded9ce] bg-white"}`}>
                   <span className="text-2xl">{petEmoji(pet.species)}</span>
                   <strong className="mt-2 block text-lg">{pet.name}</strong>
                   <span className={`mt-1 block text-xs ${active ? "text-white/65" : "text-[#7b817c]"}`}>{pet.breed || (pet.species === "dog" ? "강아지" : pet.species === "cat" ? "고양이" : "반려동물")}</span>
@@ -269,7 +271,7 @@ function HealthTimelineContent() {
 
         {selectedPet && (
           <>
-            <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <section className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
               <SummaryCard label="전체 기록" value={summary.total ?? filteredEvents.length} suffix="건" />
               <SummaryCard label="진료 기록" value={summary.visits ?? 0} suffix="건" />
               <SummaryCard label="처방 기록" value={summary.prescriptions ?? 0} suffix="건" />
@@ -288,20 +290,26 @@ function HealthTimelineContent() {
                     {weightDiff !== null && <p className={`text-sm font-bold ${weightDiff > 0 ? "text-[#d86652]" : weightDiff < 0 ? "text-[#45756a]" : "text-[#777]"}`}>이전 기록보다 {weightDiff > 0 ? "+" : ""}{weightDiff.toFixed(1)}kg</p>}
                   </div>
                 </div>
-                <div className="mt-5 overflow-x-auto rounded-[22px] bg-[#f4f7f5] p-3">
-                  <svg viewBox="0 0 680 210" className="min-w-[560px] w-full" role="img" aria-label="체중 변화 그래프">
+                <div className="mt-5 rounded-[22px] bg-[#f4f7f5] p-3">
+                  <svg viewBox="0 0 680 210" className="block h-auto w-full" role="img" aria-label="최근 7회 체중 변화 그래프" preserveAspectRatio="xMidYMid meet">
                     <line x1="36" y1="184" x2="644" y2="184" stroke="#cbd5cf" strokeWidth="2" />
                     <polyline points={graph.points} fill="none" stroke="#153f34" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-                    {petWeights.map((record, index) => {
+                    {visibleWeights.map((record, index) => {
                       const [x, y] = graph.points.split(" ")[index]?.split(",") ?? [0, 0];
                       return <circle key={record.id} cx={x} cy={y} r="7" fill="#fff" stroke="#e56f5b" strokeWidth="4" />;
                     })}
                   </svg>
                 </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-2xl bg-[#f7f4ed] px-2 py-3"><p className="text-[11px] font-bold text-[#7a827d]">최근 최저</p><strong className="mt-1 block text-sm">{graph.min.toFixed(1)}kg</strong></div>
+                  <div className="rounded-2xl bg-[#153f34] px-2 py-3 text-white"><p className="text-[11px] font-bold text-white/70">현재</p><strong className="mt-1 block text-sm">{Number(latestWeight.weight_kg).toFixed(1)}kg</strong></div>
+                  <div className="rounded-2xl bg-[#fff1ed] px-2 py-3"><p className="text-[11px] font-bold text-[#9a5a4b]">최근 최고</p><strong className="mt-1 block text-sm">{graph.max.toFixed(1)}kg</strong></div>
+                </div>
+                <p className="mt-3 text-center text-xs text-[#7a827d]">최근 {visibleWeights.length}회 기록을 한 화면에 표시합니다.</p>
               </section>
             )}
 
-            <section className="mt-6 flex gap-2 overflow-x-auto pb-2">
+            <section className="mt-6 flex flex-wrap gap-2">
               {filters.map((item) => (
                 <button key={item.key} type="button" onClick={() => setFilter(item.key)} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold ${filter === item.key ? "bg-[#153f34] text-white" : "border border-[#d9d4c9] bg-white text-[#506059]"}`}>
                   {item.label}

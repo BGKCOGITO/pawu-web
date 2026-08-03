@@ -130,20 +130,15 @@ export default function NewEventPage() {
         });
       }
     } catch (uploadError) {
-      await supabase
-        .from("pet_health_events")
-        .delete()
-        .eq("id", createdEvent.id)
-        .eq("user_id", user.id);
+      const detail =
+        uploadError instanceof Error
+          ? uploadError.message
+          : "알 수 없는 오류";
 
-      setErrorMessage(
-        `첨부파일 저장에 실패해 이벤트 등록을 취소했습니다: ${
-          uploadError instanceof Error
-            ? uploadError.message
-            : "알 수 없는 오류"
-        }`,
+      router.push(
+        `/pets/${petId}/events/${createdEvent.id}/edit?attachmentError=${encodeURIComponent(detail)}`,
       );
-      setIsSaving(false);
+      router.refresh();
       return;
     }
 

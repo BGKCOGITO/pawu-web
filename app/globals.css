@@ -412,45 +412,43 @@ body { background: var(--pawu-canvas); color: var(--pawu-ink); font-family: Aria
   }
 }
 
-/* PAWU V9.5.2 guardian chat shortcut */
+/* PAWU V10 RC3 guardian chat shortcut */
 .guardian-chat-fab {
   position: fixed;
-  right: max(20px, calc((100vw - 760px) / 2 + 20px));
-  bottom: calc(112px + env(safe-area-inset-bottom));
+  right: max(14px, calc((100vw - 760px) / 2 + 14px));
+  bottom: calc(96px + env(safe-area-inset-bottom));
   z-index: 75;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 48px;
-  padding: 0 16px;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
   border: 1px solid rgba(21, 63, 52, .15);
   border-radius: 999px;
   background: #153f34;
   color: white;
-  font-size: 13px;
-  font-weight: 900;
-  box-shadow: 0 12px 30px rgba(21, 63, 52, .25);
+  box-shadow: 0 10px 24px rgba(21, 63, 52, .22);
 }
 .guardian-chat-fab.active { background: #d86c57; }
-.guardian-chat-fab-icon { width: 22px; height: 22px; }
+.guardian-chat-fab-icon { width: 21px; height: 21px; }
 .guardian-chat-fab-icon svg { width: 100%; height: 100%; }
 .guardian-chat-fab strong {
   position: absolute;
   top: -7px;
   right: -5px;
-  min-width: 22px;
-  height: 22px;
+  min-width: 21px;
+  height: 21px;
   padding: 0 5px;
   border: 2px solid white;
   border-radius: 999px;
   background: #ef4444;
   color: white;
   font-size: 10px;
-  line-height: 18px;
+  line-height: 17px;
   text-align: center;
 }
 @media (max-width: 520px) {
-  .guardian-chat-fab { right: 18px; bottom: calc(105px + env(safe-area-inset-bottom)); }
+  .guardian-chat-fab { right: 12px; bottom: calc(92px + env(safe-area-inset-bottom)); }
 }
 
 /* PAWU V9.8.0 - route transition and loading polish */
@@ -508,3 +506,92 @@ body { background: var(--pawu-canvas); color: var(--pawu-ink); font-family: Aria
 @media (prefers-reduced-motion: reduce) {
   .pawu-skeleton::after { animation: none; }
 }
+
+/* PAWU V9.9.0 - release error and connectivity states */
+.pawu-network-banner {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 200;
+  width: min(calc(100% - 28px), 680px);
+  transform: translateX(-50%);
+  padding: 11px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(20, 45, 39, .18);
+}
+.pawu-network-banner-offline { background: #7a2f2a; color: #fff; }
+.pawu-network-banner-online { background: #153f34; color: #fff; }
+
+.pawu-system-state {
+  display: grid;
+  min-height: 70vh;
+  place-items: center;
+  padding: 32px 18px 120px;
+  background: #f4f0e8;
+  color: #19332d;
+}
+.pawu-system-state-card {
+  width: min(100%, 520px);
+  padding: clamp(28px, 6vw, 48px);
+  border: 1px solid rgba(25, 51, 45, .10);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, .94);
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(25, 51, 45, .10);
+}
+.pawu-system-state-icon {
+  display: inline-grid;
+  min-width: 58px;
+  height: 58px;
+  place-items: center;
+  margin-bottom: 18px;
+  padding: 0 12px;
+  border-radius: 18px;
+  background: #e7efe9;
+  color: #153f34;
+  font-size: 20px;
+  font-weight: 950;
+}
+.pawu-system-state-kicker {
+  margin: 0 0 8px;
+  color: #d86c57;
+  font-size: 13px;
+  font-weight: 900;
+}
+.pawu-system-state h1 {
+  margin: 0;
+  font-size: clamp(24px, 6vw, 34px);
+  line-height: 1.2;
+}
+.pawu-system-state p:not(.pawu-system-state-kicker) {
+  margin: 16px auto 0;
+  max-width: 420px;
+  color: #60716c;
+  line-height: 1.65;
+}
+.pawu-system-state-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+.pawu-system-state-actions button,
+.pawu-system-state-actions a {
+  min-width: 132px;
+  min-height: 46px;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 14px;
+  background: #153f34;
+  color: #fff;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  text-decoration: none;
+}
+.pawu-system-state-actions a { background: #e7efe9; color: #153f34; }
+.pawu-system-state small { display: block; margin-top: 18px; color: #8a9894; }
