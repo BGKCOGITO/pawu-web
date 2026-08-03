@@ -79,7 +79,11 @@ function PatientContextPanel({ context }: { context: ChatContext | null }) {
       id: `emr-${record.id}`,
       date: record.finalized_at ?? record.created_at,
       title: record.diagnosis_summary || record.assessment || "전자차트 기록",
-      detail: record.treatment_summary || record.plan || record.guardian_summary || "상세 내용 없음",
+      detail:
+        record.treatment_summary ||
+        record.plan ||
+        record.guardian_summary ||
+        "상세 내용 없음",
     })),
     ...(context?.medicalRecords ?? []).map((record) => ({
       id: `medical-${record.id}`,
@@ -87,74 +91,165 @@ function PatientContextPanel({ context }: { context: ChatContext | null }) {
       title: record.diagnosis || record.chief_complaint || "진료 기록",
       detail: record.treatment || record.follow_up || "상세 내용 없음",
     })),
-  ].sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime()).slice(0, 5);
+  ]
+    .sort(
+      (a, b) =>
+        new Date(b.date ?? 0).getTime() -
+        new Date(a.date ?? 0).getTime(),
+    )
+    .slice(0, 3);
 
-  const events = (context?.linkedEvents?.length ? context.linkedEvents : context?.recentEvents ?? []).slice(0, 8);
+  const events = (
+    context?.linkedEvents?.length
+      ? context.linkedEvents
+      : context?.recentEvents ?? []
+  ).slice(0, 3);
 
   return (
-    <aside className="space-y-4 bg-white p-5 lg:h-full lg:overflow-y-auto lg:border-l lg:border-slate-200">
-      <section>
-        <p className="text-xs font-black tracking-[0.16em] text-[#d86c57]">GUARDIAN</p>
-        <h2 className="mt-1 text-lg font-black text-[#153f34]">보호자 정보</h2>
-        <dl className="mt-3 space-y-2 rounded-2xl bg-slate-50 p-4 text-sm">
-          <div className="flex justify-between gap-4"><dt className="text-slate-500">이름</dt><dd className="font-bold">{context?.guardian?.name || "-"}</dd></div>
-          <div className="flex justify-between gap-4"><dt className="text-slate-500">연락처</dt><dd className="font-bold">{context?.guardian?.phone || "-"}</dd></div>
-        </dl>
-      </section>
+    <aside className="h-full overflow-y-auto border-l border-slate-200 bg-white p-3">
+      <div className="space-y-3">
+        <section className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black tracking-[0.14em] text-[#d86c57]">
+                GUARDIAN
+              </p>
+              <p className="truncate text-sm font-black text-[#153f34]">
+                {context?.guardian?.name || "-"}
+              </p>
+            </div>
+            <p className="shrink-0 text-xs font-bold text-slate-700">
+              {context?.guardian?.phone || "-"}
+            </p>
+          </div>
+        </section>
 
-      <section>
-        <p className="text-xs font-black tracking-[0.16em] text-[#d86c57]">PATIENT</p>
-        <h2 className="mt-1 text-lg font-black text-[#153f34]">반려동물 정보</h2>
-        <dl className="mt-3 grid grid-cols-2 gap-2 rounded-2xl bg-[#eef5f1] p-4 text-sm">
-          <div><dt className="text-slate-500">이름</dt><dd className="mt-1 font-black">{pet?.name || "-"}</dd></div>
-          <div><dt className="text-slate-500">종류</dt><dd className="mt-1 font-black">{speciesLabel(pet?.species)}</dd></div>
-          <div><dt className="text-slate-500">품종</dt><dd className="mt-1 font-black">{pet?.breed || "미입력"}</dd></div>
-          <div><dt className="text-slate-500">성별</dt><dd className="mt-1 font-black">{pet?.gender || "미입력"}</dd></div>
-          <div><dt className="text-slate-500">생년월일</dt><dd className="mt-1 font-black">{pet?.birth_date || "미입력"}</dd></div>
-          <div><dt className="text-slate-500">체중</dt><dd className="mt-1 font-black">{pet?.weight_kg != null ? `${pet.weight_kg}kg` : "미입력"}</dd></div>
-        </dl>
-        {pet?.notes && <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">{pet.notes}</p>}
-      </section>
+        <section className="rounded-xl border border-[#dce9e3] bg-[#eef5f1] px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black tracking-[0.14em] text-[#d86c57]">
+                PATIENT
+              </p>
+              <p className="truncate text-sm font-black text-[#153f34]">
+                {pet?.name || "-"} · {speciesLabel(pet?.species)}
+              </p>
+            </div>
+            <p className="shrink-0 text-xs font-black text-[#153f34]">
+              {pet?.weight_kg != null ? `${pet.weight_kg}kg` : "체중 미입력"}
+            </p>
+          </div>
 
-      <section>
-        <h2 className="text-lg font-black text-[#153f34]">이번 예약 내용</h2>
-        <div className="mt-3 rounded-2xl border border-slate-200 p-4 text-sm leading-6">
-          <p><span className="font-bold">방문 목적:</span> {context?.reservation?.visit_reason || "미입력"}</p>
-          <p className="mt-2 whitespace-pre-wrap"><span className="font-bold">증상:</span> {context?.reservation?.symptoms || "미입력"}</p>
-          {context?.reservation?.preparation_summary && (
-            <p className="mt-3 rounded-xl bg-slate-50 p-3 whitespace-pre-wrap">{context.reservation.preparation_summary}</p>
+          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+            <div className="flex min-w-0 gap-1.5">
+              <dt className="shrink-0 text-slate-500">품종</dt>
+              <dd className="truncate font-bold">{pet?.breed || "미입력"}</dd>
+            </div>
+            <div className="flex min-w-0 gap-1.5">
+              <dt className="shrink-0 text-slate-500">성별</dt>
+              <dd className="truncate font-bold">{pet?.gender || "미입력"}</dd>
+            </div>
+            <div className="col-span-2 flex min-w-0 gap-1.5">
+              <dt className="shrink-0 text-slate-500">생일</dt>
+              <dd className="truncate font-bold">
+                {pet?.birth_date || "미입력"}
+              </dd>
+            </div>
+          </dl>
+
+          {pet?.notes && (
+            <p className="mt-2 line-clamp-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-900">
+              {pet.notes}
+            </p>
           )}
-        </div>
-      </section>
+        </section>
 
-      <section>
-        <h2 className="text-lg font-black text-[#153f34]">기존 진료 내용</h2>
-        <div className="mt-3 space-y-2">
-          {records.length === 0 ? <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">이 병원의 이전 진료기록이 없습니다.</p> : records.map((record) => (
-            <article key={record.id} className="rounded-2xl border border-slate-200 p-4">
-              <p className="text-xs font-bold text-[#d86c57]">{dateLabel(record.date)}</p>
-              <h3 className="mt-1 font-black text-[#153f34]">{record.title}</h3>
-              <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">{record.detail}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+        <section className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+          <h2 className="text-xs font-black text-[#153f34]">이번 예약</h2>
+          <div className="mt-1.5 space-y-1 text-xs leading-5">
+            <p className="line-clamp-2">
+              <span className="font-bold">목적</span>
+              <span className="ml-2 text-slate-600">
+                {context?.reservation?.visit_reason || "미입력"}
+              </span>
+            </p>
+            <p className="line-clamp-2">
+              <span className="font-bold">증상</span>
+              <span className="ml-2 text-slate-600">
+                {context?.reservation?.symptoms || "미입력"}
+              </span>
+            </p>
+          </div>
+        </section>
 
-      <section>
-        <h2 className="text-lg font-black text-[#153f34]">건강 이벤트</h2>
-        <div className="mt-3 space-y-2">
-          {events.length === 0 ? <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">공유된 건강 이벤트가 없습니다.</p> : events.map((event: any) => (
-            <article key={event.id} className="rounded-2xl border border-slate-200 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-bold text-[#d86c57]">{dateLabel(event.occurred_at)}</p>
-                <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold">{event.priority || event.severity || "보통"}</span>
-              </div>
-              <h3 className="mt-1 font-black text-[#153f34]">{event.title || event.event_type || "건강 이벤트"}{event.count_value ? ` · ${event.count_value}회` : ""}</h3>
-              {event.note && <p className="mt-2 text-sm leading-6 text-slate-600">{event.note}</p>}
-            </article>
-          ))}
-        </div>
-      </section>
+        <section>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-black text-[#153f34]">최근 진료</h2>
+            <span className="text-[10px] text-slate-400">최근 3건</span>
+          </div>
+          <div className="mt-1.5 space-y-1.5">
+            {records.length === 0 ? (
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                이전 진료기록이 없습니다.
+              </p>
+            ) : (
+              records.map((record) => (
+                <article
+                  key={record.id}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="min-w-0 truncate text-xs font-black text-[#153f34]">
+                      {record.title}
+                    </h3>
+                    <p className="shrink-0 text-[10px] font-bold text-[#d86c57]">
+                      {dateLabel(record.date)}
+                    </p>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-slate-600">
+                    {record.detail}
+                  </p>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-black text-[#153f34]">건강 이벤트</h2>
+            <span className="text-[10px] text-slate-400">최근 3건</span>
+          </div>
+          <div className="mt-1.5 space-y-1.5">
+            {events.length === 0 ? (
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                공유된 건강 이벤트가 없습니다.
+              </p>
+            ) : (
+              events.map((event: any) => (
+                <article
+                  key={event.id}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="min-w-0 truncate text-xs font-black text-[#153f34]">
+                      {event.title || event.event_type || "건강 이벤트"}
+                      {event.count_value ? ` · ${event.count_value}회` : ""}
+                    </h3>
+                    <p className="shrink-0 text-[10px] font-bold text-[#d86c57]">
+                      {dateLabel(event.occurred_at)}
+                    </p>
+                  </div>
+                  {event.note && (
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-slate-600">
+                      {event.note}
+                    </p>
+                  )}
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
     </aside>
   );
 }
@@ -176,6 +271,7 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
   const userIdRef = useRef("");
   const lastMessageIdRef = useRef(0);
   const deltaInFlightRef = useRef(false);
+  const optimisticIdRef = useRef(-1);
 
   const markAsRead = useCallback(async () => {
     try {
@@ -293,22 +389,77 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+
     const trimmed = content.trim();
-    if (!trimmed || sending) return;
+    if (!trimmed || sending || !userId) return;
+
+    const optimisticId = optimisticIdRef.current--;
+    const optimisticMessage: Message = {
+      id: optimisticId,
+      sender_user_id: userId,
+      sender_type: actorType,
+      message_type: "text",
+      content: trimmed,
+      created_at: new Date().toISOString(),
+    };
+
+    setContent("");
+    setError("");
     setSending(true);
+    setMessages((current) => [...current, optimisticMessage]);
+
     try {
-      const response = await authFetch("/api/chat/messages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId, messageType: "text", content: trimmed }) });
+      const response = await authFetch("/api/chat/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          conversationId,
+          messageType: "text",
+          content: trimmed,
+        }),
+      });
+
       const result = await response.json();
       if (!response.ok) throw new Error(result.message);
-      setContent("");
+
       const createdMessage = result.message as Message | undefined;
+
       if (createdMessage) {
-        lastMessageIdRef.current = Math.max(lastMessageIdRef.current, Number(createdMessage.id) || 0);
-        setMessages((current) => current.some((message) => message.id === createdMessage.id) ? current : [...current, createdMessage]);
+        lastMessageIdRef.current = Math.max(
+          lastMessageIdRef.current,
+          Number(createdMessage.id) || 0,
+        );
+
+        setMessages((current) => {
+          const withoutOptimistic = current.filter(
+            (message) => message.id !== optimisticId,
+          );
+
+          return withoutOptimistic.some(
+            (message) => message.id === createdMessage.id,
+          )
+            ? withoutOptimistic
+            : [...withoutOptimistic, createdMessage];
+        });
+      } else {
+        setMessages((current) =>
+          current.filter((message) => message.id !== optimisticId),
+        );
+        void load(true);
       }
     } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : "메시지를 보내지 못했습니다.");
-    } finally { setSending(false); }
+      setMessages((current) =>
+        current.filter((message) => message.id !== optimisticId),
+      );
+      setContent(trimmed);
+      setError(
+        sendError instanceof Error
+          ? sendError.message
+          : "메시지를 보내지 못했습니다.",
+      );
+    } finally {
+      setSending(false);
+    }
   }
 
   const hospital = useMemo(() => one(conversation?.hospitals ?? null), [conversation]);
@@ -318,15 +469,27 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
   if (loading) return <main className="min-h-screen bg-slate-50 p-6 text-center text-slate-500">채팅을 불러오는 중입니다.</main>;
 
   return (
-    <main className={`${mode === "guardian" ? "pb-28" : ""} min-h-screen bg-slate-100 text-slate-950`}>
-      <div className={`mx-auto grid min-h-screen bg-white shadow-sm ${mode === "hospital" ? "max-w-[1440px] lg:grid-cols-[minmax(0,1fr)_380px]" : "max-w-4xl"}`}>
-        <div className="flex min-h-screen min-w-0 flex-col">
-          <header className="border-b border-slate-200 bg-white p-4 sm:p-5">
+    <main
+      className={`overflow-hidden bg-slate-100 text-slate-950 ${
+        mode === "guardian"
+          ? "h-[100dvh] pb-20"
+          : "h-[calc(100dvh-6.5rem)] min-h-[620px]"
+      }`}
+    >
+      <div
+        className={`mx-auto grid h-full min-h-0 bg-white shadow-sm ${
+          mode === "hospital"
+            ? "max-w-[1600px] lg:grid-cols-[minmax(0,1fr)_320px]"
+            : "max-w-4xl"
+        }`}
+      >
+        <div className="flex min-h-0 min-w-0 flex-col">
+          <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <Link href={mode === "hospital" ? "/hospital-admin/chat" : "/chat"} className="text-sm font-bold text-slate-500">← 채팅 목록</Link>
-                <h1 className="mt-2 truncate text-xl font-black">{mode === "hospital" ? `${reservation?.guardian_name ?? "보호자"} · ${pet?.name ?? "환자"}` : `${hospital?.name ?? "동물병원"} · ${pet?.name ?? "반려동물"}`}</h1>
-                {reservation && <p className="mt-1 text-sm text-slate-500">예약 #{conversation?.reservation_id} · {reservation.reservation_date} {String(reservation.reservation_time).slice(0, 5)}</p>}
+                <h1 className="mt-1 truncate text-lg font-black">{mode === "hospital" ? `${reservation?.guardian_name ?? "보호자"} · ${pet?.name ?? "환자"}` : `${hospital?.name ?? "동물병원"} · ${pet?.name ?? "반려동물"}`}</h1>
+                {reservation && <p className="mt-0.5 text-xs text-slate-500">예약 #{conversation?.reservation_id} · {reservation.reservation_date} {String(reservation.reservation_time).slice(0, 5)}</p>}
               </div>
               <div className="flex gap-2">
                 {mode === "hospital" && <button type="button" onClick={() => setShowInfo(true)} className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold lg:hidden">환자정보</button>}
@@ -337,7 +500,7 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
 
           {error && <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
-          <section className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4 sm:p-6">
+          <section className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-slate-50 p-4 sm:p-5">
             {messages.length === 0 && <div className="py-20 text-center text-sm text-slate-500">메시지를 보내 대화를 시작하세요.</div>}
             {messages.map((message) => {
               const isMine = message.sender_user_id === userId;
@@ -347,12 +510,12 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
             <div ref={endRef} />
           </section>
 
-          <form onSubmit={submit} className="sticky bottom-0 border-t border-slate-200 bg-white p-3 sm:p-4">
-            <div className="flex gap-2"><textarea value={content} onChange={(e) => setContent(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} rows={2} placeholder={actorType === "hospital" ? "보호자에게 전달할 내용을 입력하세요." : "병원에 문의할 내용을 입력하세요."} className="min-w-0 flex-1 resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-950"/><button type="submit" disabled={sending || !content.trim()} className="rounded-xl bg-slate-950 px-5 font-bold text-white disabled:bg-slate-400">{sending ? "전송 중" : "전송"}</button></div>
+          <form onSubmit={submit} className="shrink-0 border-t border-slate-200 bg-white p-3">
+            <div className="flex gap-2"><textarea value={content} onChange={(e) => setContent(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} rows={1} placeholder={actorType === "hospital" ? "보호자에게 전달할 내용을 입력하세요." : "병원에 문의할 내용을 입력하세요."} className="min-w-0 flex-1 resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-950"/><button type="submit" disabled={sending || !content.trim()} className="rounded-xl bg-slate-950 px-5 font-bold text-white disabled:bg-slate-400">{sending ? "전송 중" : "전송"}</button></div>
           </form>
         </div>
 
-        {mode === "hospital" && <div className="hidden lg:block"><PatientContextPanel context={context} /></div>}
+        {mode === "hospital" && <div className="hidden min-h-0 lg:block"><PatientContextPanel context={context} /></div>}
       </div>
 
       {showInfo && <div className="fixed inset-0 z-[100] bg-black/50 lg:hidden"><div className="absolute inset-y-0 right-0 w-[90%] max-w-md overflow-y-auto bg-white"><div className="sticky top-0 z-10 flex justify-end border-b bg-white p-3"><button type="button" onClick={() => setShowInfo(false)} className="rounded-xl border px-4 py-2 font-bold">닫기</button></div><PatientContextPanel context={context} /></div></div>}
