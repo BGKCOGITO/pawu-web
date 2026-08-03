@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getCachedSession } from "@/lib/client-auth-session-cache";
 
 type CareItem = {
   key: string;
@@ -69,15 +70,15 @@ export default function HomeCareSummary() {
 
       try {
 
-      const { data: auth } = await supabase.auth.getSession();
-      const user = auth.session?.user;
+      const session = await getCachedSession();
+      const user = session?.user;
 
       if (!user) {
         if (mounted) setItems([]);
         return;
       }
 
-      const cacheKey = `pawu-home-care-v960:${user.id}`;
+      const cacheKey = `pawu-home-care-v981:${user.id}`;
       if (!force) {
         try {
           const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null") as

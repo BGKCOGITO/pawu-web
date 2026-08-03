@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getCachedSession } from "@/lib/client-auth-session-cache";
 
 function NavIcon({ name }: { name: string }) {
   const p: Record<string, React.ReactNode> = {
@@ -38,8 +39,8 @@ export default function GuardianBottomNav() {
       if (requestInFlightRef.current) return;
       requestInFlightRef.current = true;
       try {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
+        const session = await getCachedSession();
+        const token = session?.access_token;
         if (!token) {
           if (active) setUnreadCount(0);
           return;
@@ -57,8 +58,8 @@ export default function GuardianBottomNav() {
     }
 
     async function connectRealtime() {
-      const { data } = await supabase.auth.getSession();
-      const userId = data.session?.user.id;
+      const session = await getCachedSession();
+      const userId = session?.user.id;
       if (!userId || !active) return;
 
       channel = supabase

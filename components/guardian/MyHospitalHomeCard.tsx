@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getCachedSession } from "@/lib/client-auth-session-cache";
 import type { MyHospitalSummary } from "@/lib/v7-0-2-my-hospital-types";
 
 const CACHE_TTL_MS = 60_000;
@@ -20,14 +21,14 @@ export default function MyHospitalHomeCard() {
       requestInFlightRef.current = true;
 
       try {
-        const { data } = await supabase.auth.getSession();
-        const user = data.session?.user;
+        const session = await getCachedSession();
+        const user = session?.user;
         if (!user) {
           if (active) setReady(true);
           return;
         }
 
-        const cacheKey = `pawu-my-hospitals-home-v980:${user.id}`;
+        const cacheKey = `pawu-my-hospitals-home-v981:${user.id}`;
         if (!force) {
           try {
             const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null") as
