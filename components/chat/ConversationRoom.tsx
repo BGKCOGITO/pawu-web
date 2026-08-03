@@ -25,6 +25,27 @@ type Conversation = {
     | null;
 };
 
+type HospitalConversationListItem = {
+  id: number;
+  reservation_id: number;
+  status: string;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  unread_count: number;
+  pet: {
+    name: string;
+    species: string | null;
+    breed: string | null;
+  } | null;
+  reservation: {
+    guardian_name: string | null;
+    phone: string | null;
+    reservation_date: string | null;
+    reservation_time: string | null;
+    status: string | null;
+  } | null;
+};
+
 type ChatContext = {
   guardian?: { name?: string | null; phone?: string | null } | null;
   pet?: {
@@ -70,6 +91,215 @@ async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   headers.set("authorization", `Bearer ${token}`);
   return fetch(input, { ...init, headers });
+}
+
+
+function HospitalConversationSidebar({
+  activeConversationId,
+}: {
+  activeConversationId: number;
+}) {
+  const [items, setItems] = useState<HospitalConversationListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const requestInFlightRef = useRef(false);
+  const refreshTimerRef = useRef<number | null>(null);
+
+  const load = useCallback(async () => {
+    if (requestInFlightRef.current) return;
+
+    requestInFlightRef.current = true;
+
+    try {
+      const response = await authFetch(
+        "/api/hospital/chat/conversations",
+        { cache: "no-store" },
+      );
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          result.message ?? "채팅 목록을 불러오지 못했습니다.",
+        );
+      }
+
+      setItems(
+        (result.conversations ?? []) as HospitalConversationListItem[],
+      );
+      setError("");
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "채팅 목록을 불러오지 못했습니다.",
+      );
+    } finally {
+      requestInFlightRef.current = false;
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+
+      refreshTimerRef.current = window.setTimeout(
+        () => void load(),
+        200,
+      );
+    };
+
+    const channel = supabase
+      .channel(`pawu-hospital-room-list-${activeConversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "chat_messages",
+        },
+        scheduleRefresh,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "chat_conversations",
+        },
+        scheduleRefresh,
+      )
+      .subscribe();
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void load();
+      }
+    };
+
+    void load();
+    document.addEventListener(
+      "visibilitychange",
+      refreshWhenVisible,
+    );
+    window.addEventListener("focus", refreshWhenVisible);
+
+    return () => {
+      document.removeEventListener(
+        "visibilitychange",
+        refreshWhenVisible,
+      );
+      window.removeEventListener("focus", refreshWhenVisible);
+
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+
+      void supabase.removeChannel(channel);
+    };
+  }, [activeConversationId, load]);
+
+  return (
+    <aside className="hidden h-full min-h-0 border-r border-slate-200 bg-white lg:flex lg:flex-col">
+      <div className="shrink-0 border-b border-slate-200 px-3 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-[10px] font-black tracking-[0.14em] text-[#d86c57]">
+              CONVERSATIONS
+            </p>
+            <h2 className="mt-0.5 text-sm font-black text-[#153f34]">
+              채팅 목록
+            </h2>
+          </div>
+          <Link
+            href="/hospital-admin/chat"
+            className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-[11px] font-bold"
+          >
+            전체
+          </Link>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {loading ? (
+          <p className="px-3 py-5 text-xs text-slate-500">
+            채팅 목록을 불러오는 중입니다.
+          </p>
+        ) : error ? (
+          <div className="m-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">
+            {error}
+          </div>
+        ) : items.length === 0 ? (
+          <p className="px-3 py-5 text-xs text-slate-500">
+            열린 채팅이 없습니다.
+          </p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {items.map((item) => {
+              const active = item.id === activeConversationId;
+
+              return (
+                <Link
+                  key={item.id}
+                  href={`/hospital-admin/chat/${item.id}`}
+                  className={`relative block px-3 py-3 transition ${
+                    active
+                      ? "bg-[#eef5f1]"
+                      : "bg-white hover:bg-slate-50"
+                  }`}
+                >
+                  {active && (
+                    <span className="absolute inset-y-0 left-0 w-1 bg-[#153f34]" />
+                  )}
+
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-black text-[#153f34]">
+                        {item.reservation?.guardian_name ?? "보호자"} ·{" "}
+                        {item.pet?.name ?? "환자"}
+                      </p>
+                      <p className="mt-1 truncate text-[11px] text-slate-500">
+                        {item.last_message_preview ?? "새 채팅"}
+                      </p>
+                    </div>
+
+                    {item.unread_count > 0 && !active && (
+                      <strong className="min-w-5 shrink-0 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[10px] text-white">
+                        {item.unread_count > 99
+                          ? "99+"
+                          : item.unread_count}
+                      </strong>
+                    )}
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-400">
+                    <span className="truncate">
+                      {item.reservation?.reservation_date ?? "-"}{" "}
+                      {String(
+                        item.reservation?.reservation_time ?? "",
+                      ).slice(0, 5)}
+                    </span>
+                    <span className="shrink-0">
+                      {item.last_message_at
+                        ? new Date(
+                            item.last_message_at,
+                          ).toLocaleDateString("ko-KR", {
+                            month: "numeric",
+                            day: "numeric",
+                          })
+                        : ""}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
 }
 
 function PatientContextPanel({ context }: { context: ChatContext | null }) {
@@ -479,10 +709,16 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
       <div
         className={`mx-auto grid h-full min-h-0 bg-white shadow-sm ${
           mode === "hospital"
-            ? "max-w-[1600px] lg:grid-cols-[minmax(0,1fr)_320px]"
+            ? "max-w-[1800px] lg:grid-cols-[240px_minmax(0,1fr)_320px]"
             : "max-w-4xl"
         }`}
       >
+        {mode === "hospital" && (
+          <HospitalConversationSidebar
+            activeConversationId={conversationId}
+          />
+        )}
+
         <div className="flex min-h-0 min-w-0 flex-col">
           <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
             <div className="flex items-center justify-between gap-3">
