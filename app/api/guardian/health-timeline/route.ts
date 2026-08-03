@@ -41,6 +41,91 @@ async function safeQuery<T>(label: string, query: PromiseLike<{ data: T | null; 
   return (result.data ?? []) as T;
 }
 
+export async function POST(request: NextRequest) {
+  const authorization = request.headers.get("authorization") ?? "";
+  const token = authorization.startsWith("Bearer ")
+    ? authorization.slice(7).trim()
+    : "";
+
+  if (!token) {
+    return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
+  }
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabaseAdmin.auth.getUser(token);
+
+  if (userError || !user) {
+    return NextResponse.json(
+      { message: "로그인 정보가 유효하지 않습니다." },
+      { status: 401 },
+    );
+  }
+
+  let body: {
+    petId?: number;
+    weightKg?: number;
+    measuredAt?: string;
+    memo?: string;
+  };
+
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ message: "입력값을 확인해 주세요." }, { status: 400 });
+  }
+
+  const petId = Number(body.petId);
+  const weightKg = Number(body.weightKg);
+  const measuredAt = typeof body.measuredAt === "string" ? body.measuredAt : "";
+  const memo = typeof body.memo === "string" ? body.memo.trim().slice(0, 200) : null;
+
+  if (!Number.isInteger(petId) || !Number.isFinite(weightKg) || weightKg <= 0 || weightKg > 300) {
+    return NextResponse.json({ message: "체중을 올바르게 입력해 주세요." }, { status: 400 });
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(measuredAt)) {
+    return NextResponse.json({ message: "측정 날짜를 확인해 주세요." }, { status: 400 });
+  }
+
+  const { data: pet, error: petError } = await supabaseAdmin
+    .from("pets")
+    .select("id")
+    .eq("id", petId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (petError || !pet) {
+    return NextResponse.json({ message: "반려동물 정보를 확인할 수 없습니다." }, { status: 404 });
+  }
+
+  const { data: record, error: insertError } = await supabaseAdmin
+    .from("weight_records")
+    .insert({
+      user_id: user.id,
+      pet_id: petId,
+      weight_kg: weightKg,
+      measured_at: measuredAt,
+      memo,
+    })
+    .select("id,pet_id,weight_kg,measured_at,memo,created_at")
+    .single();
+
+  if (insertError) {
+    console.error("[health-timeline] weight insert:", insertError.message);
+    return NextResponse.json({ message: "체중 기록을 저장하지 못했습니다." }, { status: 500 });
+  }
+
+  await supabaseAdmin
+    .from("pets")
+    .update({ weight_kg: weightKg })
+    .eq("id", petId)
+    .eq("user_id", user.id);
+
+  return NextResponse.json({ record });
+}
+
 export async function GET(request: NextRequest) {
   const authorization = request.headers.get("authorization") ?? "";
   const token = authorization.startsWith("Bearer ")

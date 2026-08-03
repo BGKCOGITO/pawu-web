@@ -158,7 +158,7 @@ export default function EmergencyHospitalFinder() {
         });
         setMessage("현재 위치에서 가까운 순서로 정렬했어요.");
       },
-      () => setMessage("브라우저에서 위치 권한을 허용해 주세요."),
+      () => setMessage("앱에서 위치 권한을 허용해 주세요."),
       { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 },
     );
   }
@@ -179,7 +179,7 @@ export default function EmergencyHospitalFinder() {
               <p className="text-[10px] font-black tracking-[.18em] text-[#f06453]">
                 PAWU EMERGENCY
               </p>
-              <h1 className="text-xl font-black">응급·야간 병원 찾기</h1>
+              <h1 className="break-keep text-lg font-black leading-6 sm:text-xl">응급·야간 병원 찾기</h1>
             </div>
             <button
               type="button"

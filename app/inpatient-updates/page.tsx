@@ -218,7 +218,7 @@ export default function InpatientUpdatesPage() {
 
   async function requestNotificationPermission() {
     if (!("Notification" in window)) {
-      setLiveNotice("이 브라우저는 알림 기능을 지원하지 않습니다.");
+      setLiveNotice("이 앱은 알림 기능을 지원하지 않습니다.");
       return;
     }
 
@@ -226,8 +226,8 @@ export default function InpatientUpdatesPage() {
 
     setLiveNotice(
       permission === "granted"
-        ? "브라우저 알림이 켜졌습니다."
-        : "브라우저 알림 권한이 허용되지 않았습니다.",
+        ? "앱 알림이 켜졌습니다."
+        : "앱 알림 권한이 허용되지 않았습니다.",
     );
   }
 
@@ -256,7 +256,7 @@ export default function InpatientUpdatesPage() {
               onClick={() => void requestNotificationPermission()}
               className="border border-slate-300 bg-white px-3 py-2 text-xs font-black"
             >
-              브라우저 알림 켜기
+              앱 알림 켜기
             </button>
           </div>
         </header>

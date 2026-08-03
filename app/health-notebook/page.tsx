@@ -156,6 +156,13 @@ function HealthTimelineContent() {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [weightModalOpen, setWeightModalOpen] = useState(false);
+  const [weightValue, setWeightValue] = useState("");
+  const [weightDate, setWeightDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [weightMemo, setWeightMemo] = useState("");
+  const [weightSaving, setWeightSaving] = useState(false);
+  const [weightError, setWeightError] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -190,7 +197,7 @@ function HealthTimelineContent() {
       setLoading(false);
     }
     void load();
-  }, [selectedPetId]);
+  }, [selectedPetId, refreshKey]);
 
   const selectedPet = pets.find((pet) => pet.id === selectedPetId) ?? pets[0] ?? null;
 
@@ -223,6 +230,48 @@ function HealthTimelineContent() {
   const latestWeight = petWeights[petWeights.length - 1];
   const previousWeight = petWeights[petWeights.length - 2];
   const weightDiff = latestWeight && previousWeight ? Number(latestWeight.weight_kg) - Number(previousWeight.weight_kg) : null;
+
+  async function saveWeightRecord() {
+    if (!selectedPet) return;
+    const weightKg = Number(weightValue);
+    if (!Number.isFinite(weightKg) || weightKg <= 0 || weightKg > 300) {
+      setWeightError("체중을 올바르게 입력해 주세요.");
+      return;
+    }
+
+    setWeightSaving(true);
+    setWeightError("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("로그인이 필요합니다.");
+
+      const response = await fetch("/api/guardian/health-timeline", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          petId: selectedPet.id,
+          weightKg,
+          measuredAt: weightDate,
+          memo: weightMemo,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message ?? "체중 기록을 저장하지 못했습니다.");
+
+      setWeightModalOpen(false);
+      setWeightValue("");
+      setWeightMemo("");
+      setRefreshKey((value) => value + 1);
+    } catch (caught) {
+      setWeightError(caught instanceof Error ? caught.message : "체중 기록을 저장하지 못했습니다.");
+    } finally {
+      setWeightSaving(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#f7f4ed] pb-28 text-[#153f34]">
@@ -306,6 +355,16 @@ function HealthTimelineContent() {
                   <div className="rounded-2xl bg-[#fff1ed] px-2 py-3"><p className="text-[11px] font-bold text-[#9a5a4b]">최근 최고</p><strong className="mt-1 block text-sm">{graph.max.toFixed(1)}kg</strong></div>
                 </div>
                 <p className="mt-3 text-center text-xs text-[#7a827d]">최근 {visibleWeights.length}회 기록을 한 화면에 표시합니다.</p>
+                <button type="button" onClick={() => { setWeightError(""); setWeightModalOpen(true); }} className="mt-4 flex min-h-12 w-full items-center justify-center rounded-2xl bg-[#153f34] px-4 text-sm font-black text-white">+ 체중 기록하기</button>
+              </section>
+            )}
+
+            {petWeights.length === 0 && (
+              <section className="mt-5 rounded-[30px] border border-[#e1ddd3] bg-white p-5 shadow-sm sm:p-7">
+                <p className="text-xs font-black tracking-[0.18em] text-[#e56f5b]">WEIGHT FLOW</p>
+                <h2 className="mt-1 text-2xl font-black">체중 변화</h2>
+                <div className="mt-5 rounded-[22px] bg-[#f4f7f5] px-4 py-10 text-center text-sm font-bold text-[#7a827d]">아직 등록된 체중 기록이 없습니다.</div>
+                <button type="button" onClick={() => { setWeightError(""); setWeightModalOpen(true); }} className="mt-4 flex min-h-12 w-full items-center justify-center rounded-2xl bg-[#153f34] px-4 text-sm font-black text-white">+ 체중 기록하기</button>
               </section>
             )}
 
@@ -342,6 +401,23 @@ function HealthTimelineContent() {
           </>
         )}
       </div>
+
+      {weightModalOpen && selectedPet && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/35 p-3 sm:items-center" onClick={() => !weightSaving && setWeightModalOpen(false)}>
+          <section role="dialog" aria-modal="true" aria-label="체중 기록하기" className="w-full max-w-md rounded-[28px] bg-[#fffdf8] p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3">
+              <div><p className="text-xs font-black tracking-[0.16em] text-[#e56f5b]">{selectedPet.name}</p><h2 className="mt-1 text-xl font-black">체중 기록하기</h2></div>
+              <button type="button" aria-label="닫기" onClick={() => setWeightModalOpen(false)} disabled={weightSaving} className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eeeae1] text-lg font-black">×</button>
+            </div>
+            <label className="mt-5 block text-sm font-black">측정 날짜<input type="date" value={weightDate} onChange={(event) => setWeightDate(event.target.value)} className="mt-2 h-12 w-full rounded-2xl border border-[#d9d4c9] bg-white px-4 outline-none focus:border-[#153f34]" /></label>
+            <label className="mt-4 block text-sm font-black">체중 (kg)<div className="mt-2 flex h-12 items-center rounded-2xl border border-[#d9d4c9] bg-white px-4 focus-within:border-[#153f34]"><input type="number" min="0.1" max="300" step="0.1" inputMode="decimal" value={weightValue} onChange={(event) => setWeightValue(event.target.value)} placeholder="예: 3.8" className="min-w-0 flex-1 bg-transparent outline-none" /><span className="text-sm font-bold text-[#7a827d]">kg</span></div></label>
+            <label className="mt-4 block text-sm font-black">메모 (선택)<textarea value={weightMemo} onChange={(event) => setWeightMemo(event.target.value.slice(0, 200))} placeholder="체중 변화와 함께 남길 내용을 입력하세요." rows={3} className="mt-2 w-full resize-none rounded-2xl border border-[#d9d4c9] bg-white p-4 outline-none focus:border-[#153f34]" /></label>
+            <div className="mt-1 text-right text-xs text-[#8a918d]">{weightMemo.length}/200</div>
+            {weightError && <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{weightError}</p>}
+            <div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setWeightModalOpen(false)} disabled={weightSaving} className="min-h-12 rounded-2xl bg-[#eeeae1] text-sm font-black">취소</button><button type="button" onClick={() => void saveWeightRecord()} disabled={weightSaving} className="min-h-12 rounded-2xl bg-[#153f34] text-sm font-black text-white disabled:opacity-60">{weightSaving ? "저장 중..." : "저장"}</button></div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
