@@ -11,48 +11,77 @@ type NetworkInformationLike = {
   effectiveType?: string;
 };
 
+type IdleWindowLike = {
+  requestIdleCallback?: (
+    callback: IdleRequestCallback,
+    options?: IdleRequestOptions,
+  ) => number;
+  cancelIdleCallback?: (handle: number) => void;
+};
+
 export default function RoutePrefetcher() {
   const router = useRouter();
 
   useEffect(() => {
     let cancelled = false;
-    const connection = (navigator as Navigator & { connection?: NetworkInformationLike }).connection;
+
+    const connection = (
+      navigator as Navigator & { connection?: NetworkInformationLike }
+    ).connection;
+
     const constrainedNetwork =
-      connection?.saveData === true || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g";
+      connection?.saveData === true ||
+      connection?.effectiveType === "slow-2g" ||
+      connection?.effectiveType === "2g";
 
     if (constrainedNetwork) return;
 
     const run = (routes: readonly string[]) => {
       if (cancelled || document.visibilityState !== "visible") return;
-      for (const route of routes) router.prefetch(route);
+
+      for (const route of routes) {
+        router.prefetch(route);
+      }
     };
 
-    const windowWithIdle = window as Window & {
-      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    };
+    const idleWindow = window as unknown as IdleWindowLike;
 
     let primaryHandle: number | undefined;
+    let primaryUsesIdleCallback = false;
     let secondaryTimer: number | undefined;
 
-    if (windowWithIdle.requestIdleCallback) {
-      primaryHandle = windowWithIdle.requestIdleCallback(() => run(PRIMARY_ROUTES), { timeout: 1_800 });
+    if (typeof idleWindow.requestIdleCallback === "function") {
+      primaryUsesIdleCallback = true;
+      primaryHandle = idleWindow.requestIdleCallback(
+        () => run(PRIMARY_ROUTES),
+        { timeout: 1_800 },
+      );
     } else {
       primaryHandle = window.setTimeout(() => run(PRIMARY_ROUTES), 700);
     }
 
-    secondaryTimer = window.setTimeout(() => run(SECONDARY_ROUTES), 3_500);
+    secondaryTimer = window.setTimeout(
+      () => run(SECONDARY_ROUTES),
+      3_500,
+    );
 
     return () => {
       cancelled = true;
+
       if (primaryHandle !== undefined) {
-        if (windowWithIdle.cancelIdleCallback && windowWithIdle.requestIdleCallback) {
-          windowWithIdle.cancelIdleCallback(primaryHandle);
+        if (
+          primaryUsesIdleCallback &&
+          typeof idleWindow.cancelIdleCallback === "function"
+        ) {
+          idleWindow.cancelIdleCallback(primaryHandle);
         } else {
           window.clearTimeout(primaryHandle);
         }
       }
-      if (secondaryTimer !== undefined) window.clearTimeout(secondaryTimer);
+
+      if (secondaryTimer !== undefined) {
+        window.clearTimeout(secondaryTimer);
+      }
     };
   }, [router]);
 

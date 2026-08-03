@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import Script from "next/script";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { getHospitalMapRows } from "@/lib/hospital-map-cache";
 
 declare global { interface Window { naver: any; } }
 
@@ -16,7 +16,6 @@ type Location = { latitude:number; longitude:number };
 type ViewMode = "list" | "map";
 type SortMode = "distance" | "name";
 
-const SELECT_COLUMNS = "id,name,address,phone,latitude,longitude,reservation_enabled,parking_available,night_care_available,emergency_care_available,is_active,source_type";
 const filterOptions = [
   { code:"reservation", label:"예약 가능" },
   { code:"night", label:"야간 진료" },
@@ -56,6 +55,7 @@ export default function NaverMap() {
   const cardRefs=useRef<Record<number,HTMLElement|null>>({});
   const [hospitals,setHospitals]=useState<Hospital[]>([]);
   const [query,setQuery]=useState("");
+  const deferredQuery=useDeferredValue(query);
   const [filters,setFilters]=useState<string[]>([]);
   const [location,setLocation]=useState<Location|null>(null);
   const [locationAccuracy,setLocationAccuracy]=useState<number|null>(null);
@@ -80,11 +80,15 @@ export default function NaverMap() {
   useEffect(()=>{
     let mounted=true;
     async function load(){
-      const {data,error}=await supabase.from("hospitals").select(SELECT_COLUMNS).eq("is_active",true).not("latitude","is",null).not("longitude","is",null).limit(12000);
-      if(!mounted)return;
-      if(error)setMessage("병원 정보를 불러오지 못했습니다.");
-      else setHospitals(((data??[]) as Hospital[]).filter(h=>Number.isFinite(Number(h.latitude))&&Number.isFinite(Number(h.longitude))));
-      setLoading(false);
+      try {
+        const rows=await getHospitalMapRows();
+        if(!mounted)return;
+        setHospitals(rows as Hospital[]);
+      } catch {
+        if(mounted)setMessage("병원 정보를 불러오지 못했습니다.");
+      } finally {
+        if(mounted)setLoading(false);
+      }
     }
     void load();
     if(navigator.geolocation){
@@ -99,7 +103,7 @@ export default function NaverMap() {
   },[]);
 
   const filtered=useMemo(()=>{
-    const q=query.trim().toLowerCase();
+    const q=deferredQuery.trim().toLowerCase();
     const rows=hospitals.filter(h=>{
       if(q&&!`${h.name} ${h.address} ${h.phone??""}`.toLowerCase().includes(q))return false;
       if(showFavoritesOnly&&!favorites.includes(h.id))return false;
@@ -114,7 +118,7 @@ export default function NaverMap() {
       if(sort==="distance"&&location)return distanceKm(location,a)-distanceKm(location,b);
       return a.name.localeCompare(b.name,"ko");
     });
-  },[hospitals,query,filters,sort,location,showFavoritesOnly,favorites]);
+  },[hospitals,deferredQuery,filters,sort,location,showFavoritesOnly,favorites]);
 
   const selected=useMemo(()=>filtered.find(h=>h.id===selectedId)??hospitals.find(h=>h.id===selectedId)??null,[filtered,hospitals,selectedId]);
 
