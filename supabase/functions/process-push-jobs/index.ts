@@ -111,6 +111,17 @@ Deno.serve(async (request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  const maintenanceStartedAt = Date.now();
+  const [{ data: recovered, error: recoverError }, { data: cleaned, error: cleanupError }] = await Promise.all([
+    supabase.rpc("recover_stale_push_jobs", { p_stale_after: "00:05:00" }),
+    supabase.rpc("cleanup_push_jobs", {
+      p_sent_retention: "30 days",
+      p_failed_retention: "90 days",
+    }),
+  ]);
+  if (recoverError) console.error("push maintenance recover failed", recoverError.message);
+  if (cleanupError) console.error("push maintenance cleanup failed", cleanupError.message);
+
   const body = await request.json().catch(() => ({}));
   const jobId = body?.record?.id ?? body?.job_id ?? null;
   const { data: jobs, error: claimError } = await supabase.rpc("claim_push_jobs", {
@@ -119,7 +130,7 @@ Deno.serve(async (request) => {
   });
   if (claimError) throw new Error(`Job claim failed: ${claimError.message}`);
   if (!jobs?.length) {
-    return new Response(JSON.stringify({ ok: true, processed: 0 }), { headers: corsHeaders });
+    return new Response(JSON.stringify({ ok: true, processed: 0, recovered: recovered ?? 0, cleaned: cleaned ?? 0 }), { headers: corsHeaders });
   }
 
   const account = readServiceAccount();
@@ -238,7 +249,7 @@ Deno.serve(async (request) => {
   }
 
   return new Response(
-    JSON.stringify({ ok: true, processed: jobs.length, sent: sentJobs }),
+    JSON.stringify({ ok: true, processed: jobs.length, sent: sentJobs, recovered: recovered ?? 0, cleaned: cleaned ?? 0, maintenance_ms: Date.now() - maintenanceStartedAt }),
     { headers: corsHeaders },
   );
 });

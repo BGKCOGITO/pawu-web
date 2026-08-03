@@ -69,6 +69,7 @@ export default function AdminOperationsPage() {
           <Menu href="/admin/reports" title="신고·문의" />
           <Menu href="/admin/audit-logs" title="전체 활동 기록" />
           <Menu href="/admin/system-status" title="시스템 상태" />
+          <Menu href="/admin/push-operations" title="푸시 발송 상태" />
           <Menu href="/policies" title="정책 페이지" />
         </section>
 
