@@ -1,7 +1,7 @@
 # PAWU PROJECT STATUS
 
 ## 현재 버전
-V9.8.1 클라이언트 세션·홈 진입 최적화
+V9.8.3 클라이언트 요청 캐시·중복 호출 최적화
 
 ## 현재 정상 작동하는 기능
 - 보호자/병원 로그인
@@ -15,6 +15,10 @@ V9.8.1 클라이언트 세션·홈 진입 최적화
 - 보호자 FCM 토큰 등록 및 push_jobs 기반 발송
 
 ## 최근 완료한 작업
+- 공통 클라이언트 요청 캐시와 진행 중 요청 공유 모듈 추가
+- 하단 채팅 읽지 않음 수를 15초 메모리 캐시로 재사용
+- 채팅 알림·읽음 이벤트 발생 시 관련 캐시 즉시 무효화
+- 홈 입원 경과와 알림 API 요청을 짧은 TTL 동안 공유
 - V9.8.0 주요 경로 사전 로딩, 전역 스켈레톤, 홈 60초 세션 캐시 적용
 - 공용 Supabase 세션 조회 캐시 및 진행 중 요청 공유 추가
 - 홈 역할 판정 결과를 사용자별 5분 세션 캐시로 저장
@@ -23,8 +27,8 @@ V9.8.1 클라이언트 세션·홈 진입 최적화
 - 주요 경로와 보조 경로 사전 로딩을 단계적으로 분리
 
 ## 지금 진행 중인 작업
-- V9.8.1을 실제 보호자 휴대폰 PWA와 PC Chrome에서 테스트
-- 첫 홈 진입과 홈 재진입 속도 비교
+- V9.8.3을 보호자 휴대폰 PWA와 PC Chrome에서 테스트
+- 홈 재진입·화면 복귀 시 API 호출 감소와 배지 정확성 확인
 
 ## 발견된 오류와 미해결 문제
 - Android 제조사 절전 정책이나 Chrome 알림 차단은 앱 외부 설정에 영향을 받음
@@ -32,6 +36,13 @@ V9.8.1 클라이언트 세션·홈 진입 최적화
 - 전체 프로젝트 의존성 설치 환경에서 최종 build/typecheck 확인 필요
 
 ## 다음에 진행할 정확한 작업
+1. V9.8.3 패치를 덮어쓰고 `npm run typecheck` 실행
+2. `npm run build` 실행
+3. 홈·채팅·알림 화면을 왕복하며 데이터 갱신과 속도 확인
+4. 앱 종료 푸시와 채팅 읽음 배지 정상 여부 확인
+5. 정상이라면 Git 커밋·푸시 및 Vercel 배포
+
+## 이전 단계 참고
 1. V9.8.1 변경 파일을 프로젝트에 덮어쓰기
 2. `npm run typecheck`와 `npm run dev` 실행
 3. 로그인 후 첫 홈 진입 시간을 확인
@@ -42,16 +53,13 @@ V9.8.1 클라이언트 세션·홈 진입 최적화
 8. 정상이라면 Git 커밋·푸시 및 Vercel 배포
 
 ## 마지막으로 수정한 파일 목록
-- `lib/client-auth-session-cache.ts`
-- `components/HomeRoleRedirect.tsx`
-- `components/home/HomeCareSummary.tsx`
-- `components/guardian/MyHospitalHomeCard.tsx`
+- `lib/client-query-cache.ts`
 - `components/GuardianBottomNav.tsx`
-- `components/navigation/RoutePrefetcher.tsx`
+- `components/home/HomeCareSummary.tsx`
 - `PAWU_MASTER.md`
 - `PROJECT_STATUS.md`
 - `CHANGELOG.md`
-- `README-V9.8.1-PERFORMANCE.txt`
+- `README-V9.8.3-CLIENT-REQUEST-CACHE.txt`
 
 ## 사용자 테스트가 필요한 항목
 - 보호자 첫 홈 진입 및 재진입 속도

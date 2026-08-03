@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getCachedSession } from "@/lib/client-auth-session-cache";
+import { getOrLoadClientData, invalidateClientCache } from "@/lib/client-query-cache";
 
 function NavIcon({ name }: { name: string }) {
   const p: Record<string, React.ReactNode> = {
@@ -46,11 +47,17 @@ export default function GuardianBottomNav() {
           return;
         }
 
-        const response = await fetch("/api/chat/unread-count", {
-          headers: { authorization: `Bearer ${token}` },
-          cache: "no-store",
+        const result = await getOrLoadClientData<{ count?: number }>({
+          key: `guardian-unread:${session.user.id}`,
+          ttlMs: 15_000,
+          load: async () => {
+            const response = await fetch("/api/chat/unread-count", {
+              headers: { authorization: `Bearer ${token}` },
+              cache: "no-store",
+            });
+            return response.json().catch(() => ({ count: 0 }));
+          },
         });
-        const result = await response.json().catch(() => ({ count: 0 }));
         if (active) setUnreadCount(Number(result.count) || 0);
       } finally {
         requestInFlightRef.current = false;
@@ -69,7 +76,10 @@ export default function GuardianBottomNav() {
           { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
           (payload) => {
             const notification = payload.new as { type?: string };
-            if (notification.type === "chat_message") setUnreadCount((count) => count + 1);
+            if (notification.type === "chat_message") {
+              invalidateClientCache(`guardian-unread:${userId}`);
+              setUnreadCount((count) => count + 1);
+            }
           },
         )
         .subscribe();
@@ -81,13 +91,18 @@ export default function GuardianBottomNav() {
 
     void loadUnread();
     void connectRealtime();
-    window.addEventListener("pawu:chat-read", loadUnread);
+    const handleChatRead = () => {
+      invalidateClientCache("guardian-unread:");
+      void loadUnread();
+    };
+
+    window.addEventListener("pawu:chat-read", handleChatRead);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     window.addEventListener("focus", refreshWhenVisible);
 
     return () => {
       active = false;
-      window.removeEventListener("pawu:chat-read", loadUnread);
+      window.removeEventListener("pawu:chat-read", handleChatRead);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       window.removeEventListener("focus", refreshWhenVisible);
       if (channel) void supabase.removeChannel(channel);

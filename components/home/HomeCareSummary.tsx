@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getCachedSession } from "@/lib/client-auth-session-cache";
+import { getOrLoadClientData } from "@/lib/client-query-cache";
 
 type CareItem = {
   key: string;
@@ -130,12 +131,24 @@ export default function HomeCareSummary() {
             .eq("status", "completed")
             .order("reservation_date", { ascending: false })
             .limit(40),
-          fetch("/api/guardian/hospitalization-updates", { cache: "no-store" }).then(
-            async (response) => (response.ok ? response.json() : null),
-          ),
-          fetch("/api/notifications?limit=50", { cache: "no-store" }).then(
-            async (response) => (response.ok ? response.json() : null),
-          ),
+          getOrLoadClientData({
+            key: `home-hospitalization-updates:${user.id}`,
+            ttlMs: HOME_CACHE_TTL_MS,
+            force,
+            load: async () => {
+              const response = await fetch("/api/guardian/hospitalization-updates", { cache: "no-store" });
+              return response.ok ? response.json() : null;
+            },
+          }),
+          getOrLoadClientData({
+            key: `home-notifications:${user.id}`,
+            ttlMs: 20_000,
+            force,
+            load: async () => {
+              const response = await fetch("/api/notifications?limit=50", { cache: "no-store" });
+              return response.ok ? response.json() : null;
+            },
+          }),
         ]);
 
       const next: CareItem[] = [];
