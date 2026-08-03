@@ -253,7 +253,18 @@ export default function NaverMap() {
           const isFavorite=favorites.includes(h.id);
           const isSelected=selectedId===h.id;
           return <article ref={element=>{cardRefs.current[h.id]=element}} key={h.id} className={isSelected?"overflow-hidden rounded-[26px] border-2 border-[#ff725e] bg-[#fffdf8] shadow-[0_16px_40px_rgba(255,114,94,.18)]":"overflow-hidden rounded-[26px] border border-[#e8e2d6] bg-[#fffdf8] shadow-[0_10px_30px_rgba(30,58,50,.08)]"}>
-            <button type="button" onClick={()=>selectHospital(h)} className="block w-full p-5 text-left active:bg-[#faf7f0]">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={()=>selectHospital(h)}
+              onKeyDown={event=>{
+                if(event.key==="Enter"||event.key===" "){
+                  event.preventDefault();
+                  selectHospital(h);
+                }
+              }}
+              className="block w-full cursor-pointer p-5 text-left active:bg-[#faf7f0]"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap gap-1.5">
@@ -282,7 +293,7 @@ export default function NaverMap() {
                 {h.parking_available&&<span className="rounded-full border border-[#e2ddd1] bg-white px-3 py-1.5 text-[11px] font-black text-[#5f6964]">주차 가능</span>}
                 {!h.night_care_available&&!h.emergency_care_available&&!h.parking_available&&<span className="text-[11px] font-bold text-[#9aa19d]">등록된 편의 정보가 없습니다.</span>}
               </div>
-            </button>
+            </div>
 
             <div className="border-t border-[#ece7dc] bg-white p-3">
               <div className="grid grid-cols-2 gap-2">
