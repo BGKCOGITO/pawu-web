@@ -31,7 +31,7 @@ export default function HospitalPermissionGate({ children }: { children: ReactNo
           <p className="mt-3 text-sm leading-6 text-slate-600">{error || "병원 계정 또는 직원 사용 상태를 확인해 주세요."}</p>
           <div className="mt-6 flex flex-wrap gap-2">
             <button type="button" onClick={() => void refresh()} className="border border-slate-400 px-4 py-2 text-sm font-bold">다시 확인</button>
-            <Link href="/login" className="bg-slate-950 px-4 py-2 text-sm font-bold text-white">로그인 화면</Link>
+            <Link href="/auth/hospital-login" className="bg-slate-950 px-4 py-2 text-sm font-bold text-white">로그인 화면</Link>
           </div>
         </div>
       </main>
