@@ -4,7 +4,7 @@ function jsString(value: string | undefined) {
 
 export async function GET() {
   const source = `
-const CACHE_NAME = "pawu-shell-v9.6.2";
+const CACHE_NAME = "pawu-shell-v9.7.0";
 const OFFLINE_URL = "/offline";
 const APP_SHELL = [OFFLINE_URL, "/icons/pawu-v903-192.png", "/icons/pawu-v903-512.png"];
 
@@ -59,6 +59,11 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.messagin
   const messaging = firebase.messaging();
 
   messaging.onBackgroundMessage((payload) => {
+    // notification payload는 FCM/브라우저가 앱 종료 상태에서도 직접 표시한다.
+    // 여기서 다시 showNotification을 호출하면 동일 알림이 두 번 보일 수 있으므로 건너뛴다.
+    if (payload.notification) return;
+
+    // 구버전 data-only 메시지와 개발 테스트 메시지만 수동 표시한다.
     const title = payload.data?.title || "PAWU 새 병원 메시지";
     const options = {
       body: payload.data?.body || "병원에서 새 메시지가 도착했습니다.",

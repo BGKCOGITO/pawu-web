@@ -48,6 +48,7 @@ export default function NotificationSettingsPage() {
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [registered, setRegistered] = useState(false);
 
   async function getToken() {
     const { data } = await supabase.auth.getSession();
@@ -59,9 +60,15 @@ export default function NotificationSettingsPage() {
     async function load() {
       const token = await getToken();
       if (!token) return;
-      const response = await fetch("/api/notifications/preferences", { headers: { authorization: `Bearer ${token}` } });
-      const result = await response.json();
-      setPrefs(result.preferences ?? {});
+      const headers = { authorization: `Bearer ${token}` };
+      const [preferencesResponse, registrationResponse] = await Promise.all([
+        fetch("/api/notifications/preferences", { headers }),
+        fetch("/api/push/register", { headers, cache: "no-store" }),
+      ]);
+      const preferencesResult = await preferencesResponse.json().catch(() => ({}));
+      const registrationResult = await registrationResponse.json().catch(() => ({}));
+      setPrefs(preferencesResult.preferences ?? {});
+      setRegistered(Boolean(registrationResponse.ok && registrationResult.registered));
     }
     void load();
   }, []);
@@ -109,6 +116,7 @@ export default function NotificationSettingsPage() {
       });
       const saveResult = await saveResponse.json().catch(() => ({}));
       if (!saveResponse.ok) throw new Error(saveResult.message ?? "푸시 토큰을 저장하지 못했습니다.");
+      setRegistered(true);
 
       const nextPrefs = { ...prefs, browser_push: true, chat_messages: true };
       setPrefs(nextPrefs);
@@ -147,7 +155,7 @@ export default function NotificationSettingsPage() {
             <div>
               <strong>휴대폰 푸시 알림</strong>
               <p className="mt-1 text-sm text-gray-500">
-                현재 상태: {permission === "granted" ? "권한 허용됨" : permission === "denied" ? "차단됨" : permission === "unsupported" ? "지원하지 않음" : "연결 전"}
+                현재 상태: {registered ? "푸시 토큰 등록됨" : permission === "granted" ? "권한은 허용됐지만 토큰 미등록" : permission === "denied" ? "차단됨" : permission === "unsupported" ? "지원하지 않음" : "연결 전"}
               </p>
               <p className="mt-2 text-xs leading-5 text-gray-500">앱을 닫거나 화면을 잠가도 병원에서 새 메시지가 오면 시스템 알림으로 알려드립니다.</p>
             </div>

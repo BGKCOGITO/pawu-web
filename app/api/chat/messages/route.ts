@@ -5,42 +5,6 @@ import {
   getAuthUser,
   readBearer,
 } from "../../../../lib/chat-access";
-import { sendGuardianChatPush } from "../../../../lib/push/fcm-admin";
-
-
-export async function GET(request: Request) {
-  const user = await getAuthUser(readBearer(request));
-  if (!user) {
-    return NextResponse.json({ ok: false, message: "로그인이 필요합니다." }, { status: 401 });
-  }
-
-  const url = new URL(request.url);
-  const conversationId = Number(url.searchParams.get("conversationId"));
-  const afterId = Math.max(0, Number(url.searchParams.get("afterId") ?? 0));
-
-  if (!Number.isInteger(conversationId)) {
-    return NextResponse.json({ ok: false, message: "채팅방 정보가 올바르지 않습니다." }, { status: 400 });
-  }
-
-  const access = await canAccessConversation(conversationId, user.id);
-  if (!access) {
-    return NextResponse.json({ ok: false, message: "채팅방 접근 권한이 없습니다." }, { status: 403 });
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from("chat_messages")
-    .select("id,sender_user_id,sender_type,message_type,content,created_at")
-    .eq("conversation_id", conversationId)
-    .gt("id", afterId)
-    .order("id", { ascending: true })
-    .limit(100);
-
-  if (error) {
-    return NextResponse.json({ ok: false, message: error.message }, { status: 400 });
-  }
-
-  return NextResponse.json({ ok: true, messages: data ?? [] });
-}
 
 export async function POST(request: Request) {
   const user = await getAuthUser(readBearer(request));
@@ -94,7 +58,7 @@ export async function POST(request: Request) {
       mime_type: body.mimeType ?? null,
       file_size: body.fileSize ?? null,
     })
-    .select("id,sender_user_id,sender_type,message_type,content,created_at")
+    .select("id, created_at")
     .single();
 
   if (error || !created) {
@@ -144,21 +108,13 @@ export async function POST(request: Request) {
           metadata: { conversation_id: conversationId, hospital_id: conversation?.hospital_id },
         });
 
-        try {
-          await sendGuardianChatPush(guardianUserId, {
-            title: "PAWU 새 병원 메시지",
-            body: "병원에서 새 메시지가 도착했습니다.",
-            url: `/chat/${conversationId}`,
-            tag: `pawu-chat-${conversationId}`,
-          });
-        } catch (pushError) {
-          console.error("PAWU FCM push failed", pushError);
-        }
+        // V9.7.0: 시스템 푸시는 DB trigger → push_jobs → Supabase Edge Function에서 처리한다.
+        // 채팅 API 응답과 FCM 발송을 분리해 앱/브라우저 상태와 무관하게 재시도할 수 있다.
       }
     }
   }
 
-  return NextResponse.json({ ok: true, messageId: created.id, message: created });
+  return NextResponse.json({ ok: true, messageId: created.id });
 }
 
 export async function PATCH(request: Request) {

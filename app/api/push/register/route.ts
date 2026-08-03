@@ -25,6 +25,22 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true });
 }
 
+export async function GET(request: Request) {
+  const user = await getUserFromRequest(request);
+  if (!user) return NextResponse.json({ ok: false, message: "로그인이 필요합니다." }, { status: 401 });
+
+  const { data, error } = await supabaseAdmin
+    .from("fcm_tokens")
+    .select("id, is_active, updated_at")
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+
+  if (error) return NextResponse.json({ ok: false, message: error.message }, { status: 400 });
+  return NextResponse.json({ ok: true, registered: Boolean(data?.length), updatedAt: data?.[0]?.updated_at ?? null });
+}
+
 export async function DELETE(request: Request) {
   const user = await getUserFromRequest(request);
   if (!user) return NextResponse.json({ ok: false, message: "로그인이 필요합니다." }, { status: 401 });
