@@ -1,42 +1,97 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { MyHospitalSummary } from "@/lib/v7-0-2-my-hospital-types";
+
+const CACHE_TTL_MS = 60_000;
 
 export default function MyHospitalHomeCard() {
   const [items, setItems] = useState<MyHospitalSummary[]>([]);
   const [ready, setReady] = useState(false);
+  const requestInFlightRef = useRef(false);
 
   useEffect(() => {
     let active = true;
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { if (active) setReady(true); return; }
 
-      const { data, error } = await supabase
-        .from("guardian_pet_hospitals")
-        .select("id,pet_id,hospital_id,is_primary,pets!inner(name),hospitals!inner(name,address,phone,reservation_enabled,latitude,longitude)")
-        .eq("user_id", user.id)
-        .order("is_primary", { ascending: false })
-        .order("updated_at", { ascending: false })
-        .limit(3);
+    async function load(force = false) {
+      if (requestInFlightRef.current) return;
+      requestInFlightRef.current = true;
 
-      if (!active) return;
-      if (!error) {
-        setItems((data ?? []).map((row: any) => ({
-          relationId: Number(row.id), petId: Number(row.pet_id), petName: String(row.pets?.name ?? "반려동물"),
-          hospitalId: Number(row.hospital_id), hospitalName: String(row.hospitals?.name ?? "동물병원"),
-          address: String(row.hospitals?.address ?? ""), phone: row.hospitals?.phone ?? null,
-          reservationEnabled: Boolean(row.hospitals?.reservation_enabled), latitude: row.hospitals?.latitude ?? null,
-          longitude: row.hospitals?.longitude ?? null, isPrimary: Boolean(row.is_primary),
-        })));
+      try {
+        const { data } = await supabase.auth.getSession();
+        const user = data.session?.user;
+        if (!user) {
+          if (active) setReady(true);
+          return;
+        }
+
+        const cacheKey = `pawu-my-hospitals-home-v980:${user.id}`;
+        if (!force) {
+          try {
+            const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null") as
+              | { savedAt: number; items: MyHospitalSummary[] }
+              | null;
+            if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
+              if (active) {
+                setItems(cached.items);
+                setReady(true);
+              }
+              return;
+            }
+          } catch {
+            sessionStorage.removeItem(cacheKey);
+          }
+        }
+
+        const { data: rows, error } = await supabase
+          .from("guardian_pet_hospitals")
+          .select("id,pet_id,hospital_id,is_primary,pets!inner(name),hospitals!inner(name,address,phone,reservation_enabled,latitude,longitude)")
+          .eq("user_id", user.id)
+          .order("is_primary", { ascending: false })
+          .order("updated_at", { ascending: false })
+          .limit(3);
+
+        if (!active) return;
+        if (!error) {
+          const nextItems = (rows ?? []).map((row: any) => ({
+            relationId: Number(row.id),
+            petId: Number(row.pet_id),
+            petName: String(row.pets?.name ?? "반려동물"),
+            hospitalId: Number(row.hospital_id),
+            hospitalName: String(row.hospitals?.name ?? "동물병원"),
+            address: String(row.hospitals?.address ?? ""),
+            phone: row.hospitals?.phone ?? null,
+            reservationEnabled: Boolean(row.hospitals?.reservation_enabled),
+            latitude: row.hospitals?.latitude ?? null,
+            longitude: row.hospitals?.longitude ?? null,
+            isPrimary: Boolean(row.is_primary),
+          }));
+          setItems(nextItems);
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), items: nextItems }));
+          } catch {
+            // 캐시 저장에 실패해도 화면 표시는 계속합니다.
+          }
+        }
+        setReady(true);
+      } finally {
+        requestInFlightRef.current = false;
       }
-      setReady(true);
     }
+
     void load();
-    return () => { active = false; };
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void load(false);
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, []);
 
   if (!ready || items.length === 0) return null;

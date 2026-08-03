@@ -57,12 +57,17 @@ const HOME_CACHE_TTL_MS = 60_000;
 export default function HomeCareSummary() {
   const [items, setItems] = useState<CareItem[]>([]);
   const lastLoadedAtRef = useRef(0);
+  const requestInFlightRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
 
     async function load(force = false) {
+      if (requestInFlightRef.current) return;
       if (!force && Date.now() - lastLoadedAtRef.current < HOME_CACHE_TTL_MS) return;
+      requestInFlightRef.current = true;
+
+      try {
 
       const { data: auth } = await supabase.auth.getSession();
       const user = auth.session?.user;
@@ -258,6 +263,9 @@ export default function HomeCareSummary() {
         // 저장 공간이 부족해도 화면 데이터는 정상 표시합니다.
       }
       if (mounted) setItems(next);
+      } finally {
+        requestInFlightRef.current = false;
+      }
     }
 
     void load();

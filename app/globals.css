@@ -452,3 +452,59 @@ body { background: var(--pawu-canvas); color: var(--pawu-ink); font-family: Aria
 @media (max-width: 520px) {
   .guardian-chat-fab { right: 18px; bottom: calc(105px + env(safe-area-inset-bottom)); }
 }
+
+/* PAWU V9.8.0 - route transition and loading polish */
+.pawu-route-loading {
+  width: min(100%, 1080px);
+  min-height: 55vh;
+  margin: 0 auto;
+  padding: clamp(24px, 5vw, 56px);
+}
+
+.pawu-route-loading-head {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.pawu-route-loading-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.pawu-skeleton {
+  display: block;
+  overflow: hidden;
+  position: relative;
+  border-radius: 18px;
+  background: #e7ece9;
+}
+
+.pawu-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.72), transparent);
+  animation: pawu-skeleton-shimmer 1.25s ease-in-out infinite;
+}
+
+.pawu-skeleton-kicker { width: 96px; height: 12px; border-radius: 999px; }
+.pawu-skeleton-title { width: min(68%, 430px); height: 38px; }
+.pawu-skeleton-copy { width: min(82%, 620px); height: 18px; }
+.pawu-skeleton-card { min-height: 180px; border-radius: 28px; }
+
+@keyframes pawu-skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@media (max-width: 760px) {
+  .pawu-route-loading { padding: 24px 18px 120px; }
+  .pawu-route-loading-grid { grid-template-columns: 1fr; }
+  .pawu-skeleton-card { min-height: 128px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pawu-skeleton::after { animation: none; }
+}
