@@ -117,7 +117,12 @@ export async function sendGuardianChatPush(userId: string, payload: PushPayload)
       body: JSON.stringify({
         message: {
           token: row.token,
-          // 데이터 전용 메시지로 전송해 Service Worker가 알림을 한 번만 표시한다.
+          // 앱이 종료되어 JavaScript와 Service Worker 핸들러가 실행되지 않아도
+          // 운영체제가 직접 알림을 표시하도록 notification payload를 함께 보낸다.
+          notification: {
+            title: payload.title,
+            body: payload.body,
+          },
           data: {
             title: payload.title,
             body: payload.body,
@@ -128,6 +133,35 @@ export async function sendGuardianChatPush(userId: string, payload: PushPayload)
             headers: {
               Urgency: "high",
               TTL: "86400",
+            },
+            notification: {
+              title: payload.title,
+              body: payload.body,
+              icon: "/icons/pawu-v903-192.png",
+              badge: "/icons/pawu-v903-192.png",
+              tag: payload.tag ?? "pawu-chat-message",
+              renotify: true,
+              requireInteraction: false,
+              vibrate: [200, 100, 200],
+              data: {
+                url: payload.url,
+              },
+            },
+            fcm_options: {
+              link: payload.url,
+            },
+          },
+          android: {
+            priority: "high",
+            notification: {
+              title: payload.title,
+              body: payload.body,
+              sound: "default",
+              default_sound: true,
+              default_vibrate_timings: true,
+              channel_id: "pawu_messages",
+              tag: payload.tag ?? "pawu-chat-message",
+              click_action: payload.url,
             },
           },
         },
@@ -141,6 +175,11 @@ export async function sendGuardianChatPush(userId: string, payload: PushPayload)
     }
 
     const detail = await response.text();
+    console.error(
+      "PAWU FCM send failed",
+      response.status,
+      detail.slice(0, 1000),
+    );
     if (response.status === 404 || detail.includes("UNREGISTERED") || detail.includes("INVALID_ARGUMENT")) {
       await supabaseAdmin
         .from("fcm_tokens")
@@ -149,7 +188,6 @@ export async function sendGuardianChatPush(userId: string, payload: PushPayload)
       continue;
     }
 
-    console.error("PAWU FCM send failed", response.status, detail.slice(0, 500));
   }
   return { sent, skipped: false };
 }
