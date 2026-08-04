@@ -6,6 +6,7 @@ import HospitalSidebar from "./HospitalSidebar";
 import HospitalTopbar from "./HospitalTopbar";
 import HospitalPermissionGate from "./HospitalPermissionGate";
 import HospitalPermissionProvider from "./HospitalPermissionProvider";
+import HospitalDesktopNotificationBridge from "./HospitalDesktopNotificationBridge";
 
 export default function HospitalAdminShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -13,6 +14,7 @@ export default function HospitalAdminShell({ children }: { children: ReactNode }
 
   return (
     <HospitalPermissionProvider>
+      <HospitalDesktopNotificationBridge />
       <div className="min-h-screen bg-slate-100 text-slate-950" data-pawu-hospital-shell="true">
         <HospitalSidebar
           mobileOpen={mobileOpen}

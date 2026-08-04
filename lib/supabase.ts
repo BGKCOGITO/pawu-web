@@ -29,6 +29,22 @@ function getSupabasePublishableKey(): string {
   return value;
 }
 
+function getAuthStorageKey(): string {
+  if (typeof window === "undefined") {
+    return "pawu-auth-server-v1";
+  }
+
+  const hostname = window.location.hostname.toLowerCase();
+  const isHospitalHost =
+    hostname === "pawu-hospital-web.vercel.app" ||
+    hostname.startsWith("hospital.") ||
+    hostname.includes("pawu-hospital");
+
+  return isHospitalHost
+    ? "pawu-hospital-auth-v1"
+    : "pawu-guardian-auth-v1";
+}
+
 const supabaseUrl: string = getSupabaseUrl();
 const supabasePublishableKey: string =
   getSupabasePublishableKey();
@@ -49,7 +65,7 @@ function createBrowserSupabase(): SupabaseClient {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        storageKey: "pawu-auth-session-v2",
+        storageKey: getAuthStorageKey(),
       },
     },
   );
