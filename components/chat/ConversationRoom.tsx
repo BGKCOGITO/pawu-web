@@ -94,6 +94,62 @@ async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
 }
 
 
+type TauriInvoke = (
+  command: string,
+  args?: Record<string, unknown>,
+) => Promise<unknown>;
+
+function getTauriInvoke(): TauriInvoke | null {
+  if (typeof window === "undefined") return null;
+
+  const tauriWindow = window as Window & {
+    __TAURI__?: {
+      core?: {
+        invoke?: TauriInvoke;
+      };
+    };
+  };
+
+  return tauriWindow.__TAURI__?.core?.invoke ?? null;
+}
+
+async function sendHospitalDesktopNotification(
+  message: Pick<Message, "sender_type" | "content">,
+) {
+  if (message.sender_type !== "guardian") return;
+
+  const body =
+    message.content?.trim().slice(0, 120) ||
+    "보호자가 새 메시지를 보냈습니다.";
+
+  const invoke = getTauriInvoke();
+
+  if (invoke) {
+    try {
+      await invoke("send_pawu_notification", {
+        title: "PAWU Hospital · 새 보호자 채팅",
+        body,
+      });
+      return;
+    } catch (notificationError) {
+      console.warn(
+        "PAWU Hospital Windows 알림 전송 실패:",
+        notificationError,
+      );
+    }
+  }
+
+  if (
+    "Notification" in window &&
+    Notification.permission === "granted"
+  ) {
+    new Notification("PAWU Hospital · 새 보호자 채팅", {
+      body,
+    });
+  }
+}
+
+
 function HospitalConversationSidebar({
   activeConversationId,
 }: {
@@ -160,7 +216,17 @@ function HospitalConversationSidebar({
           schema: "public",
           table: "chat_messages",
         },
-        scheduleRefresh,
+        (payload) => {
+          const incoming = payload.new as Message & {
+            conversation_id?: number;
+          };
+
+          scheduleRefresh();
+
+          if (incoming.sender_type === "guardian") {
+            void sendHospitalDesktopNotification(incoming);
+          }
+        },
       )
       .on(
         "postgres_changes",
