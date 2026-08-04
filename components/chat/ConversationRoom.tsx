@@ -90,7 +90,11 @@ async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   if (!token) throw new Error("로그인이 필요합니다.");
   const headers = new Headers(init.headers);
   headers.set("authorization", `Bearer ${token}`);
-  return fetch(input, { ...init, headers });
+  return fetch(input, {
+    ...init,
+    headers,
+    cache: init.cache ?? "no-store",
+  });
 }
 
 
@@ -160,6 +164,10 @@ function HospitalConversationSidebar({
   const [error, setError] = useState("");
   const requestInFlightRef = useRef(false);
   const refreshTimerRef = useRef<number | null>(null);
+  const initializedRef = useRef(false);
+  const latestMessageAtRef = useRef<Map<number, string | null>>(
+    new Map(),
+  );
 
   const load = useCallback(async () => {
     if (requestInFlightRef.current) return;
@@ -179,9 +187,37 @@ function HospitalConversationSidebar({
         );
       }
 
-      setItems(
-        (result.conversations ?? []) as HospitalConversationListItem[],
+      const nextItems = (
+        result.conversations ?? []
+      ) as HospitalConversationListItem[];
+
+      if (initializedRef.current) {
+        for (const item of nextItems) {
+          const previousAt = latestMessageAtRef.current.get(item.id);
+          const nextAt = item.last_message_at;
+
+          if (
+            previousAt &&
+            nextAt &&
+            previousAt !== nextAt &&
+            item.id !== activeConversationId &&
+            item.unread_count > 0
+          ) {
+            void sendHospitalDesktopNotification({
+              sender_type: "guardian",
+              content:
+                item.last_message_preview ||
+                "보호자가 새 메시지를 보냈습니다.",
+            });
+          }
+        }
+      }
+
+      latestMessageAtRef.current = new Map(
+        nextItems.map((item) => [item.id, item.last_message_at]),
       );
+      initializedRef.current = true;
+      setItems(nextItems);
       setError("");
     } catch (loadError) {
       setError(
@@ -246,6 +282,13 @@ function HospitalConversationSidebar({
     };
 
     void load();
+
+    // Supabase Realtime이 끊기거나 지연되는 경우에도
+    // 채팅 목록과 읽지 않은 개수를 빠르게 동기화합니다.
+    const pollingTimer = window.setInterval(() => {
+      void load();
+    }, 1500);
+
     document.addEventListener(
       "visibilitychange",
       refreshWhenVisible,
@@ -263,6 +306,7 @@ function HospitalConversationSidebar({
         window.clearTimeout(refreshTimerRef.current);
       }
 
+      window.clearInterval(pollingTimer);
       void supabase.removeChannel(channel);
     };
   }, [activeConversationId, load]);
@@ -639,7 +683,7 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
     };
 
     const syncNewMessages = async () => {
-      if (document.visibilityState !== "visible" || deltaInFlightRef.current) return;
+      if (deltaInFlightRef.current) return;
       deltaInFlightRef.current = true;
       try {
         const response = await authFetch(`/api/chat/messages?conversationId=${conversationId}&afterId=${lastMessageIdRef.current}`);
@@ -666,7 +710,16 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
       }
     };
 
-    const deltaTimer = window.setInterval(() => void syncNewMessages(), 2500);
+    const deltaTimer = window.setInterval(
+      () => void syncNewMessages(),
+      1000,
+    );
+
+    // afterId 동기화 API나 Realtime 이벤트가 누락되어도
+    // 전체 대화를 주기적으로 재확인해 양쪽 화면을 복구합니다.
+    const reconciliationTimer = window.setInterval(() => {
+      void load(true);
+    }, 5000);
 
     document.addEventListener("visibilitychange", refreshIfNeeded);
     window.addEventListener("focus", refreshIfNeeded);
@@ -677,6 +730,7 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
       window.removeEventListener("focus", refreshIfNeeded);
       window.removeEventListener("pageshow", refreshIfNeeded);
       window.clearInterval(deltaTimer);
+      window.clearInterval(reconciliationTimer);
       void supabase.removeChannel(channel);
     };
   }, [conversationId, load, markAsRead]);
