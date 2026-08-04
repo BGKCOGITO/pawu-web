@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 declare global {
@@ -19,56 +19,47 @@ declare global {
   }
 }
 
+type RegisterResult =
+  | { ok: true }
+  | { ok: false; reason: string };
+
 const REGISTER_LOCK_KEY = "pawu_push_register_lock";
-const REGISTER_LOCK_MS = 60_000;
+const REGISTER_LOCK_MS = 15_000;
 
-function loadScript(src: string) {
-  return new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector(
-      `script[src="${src}"]`,
-    ) as HTMLScriptElement | null;
+function isGuardianPage() {
+  const path = window.location.pathname;
 
-    if (existing) {
-      if (existing.dataset.loaded === "true") {
-        resolve();
-        return;
-      }
+  return !(
+    path.startsWith("/hospital-admin") ||
+    path.startsWith("/auth/hospital") ||
+    path.startsWith("/admin") ||
+    path.startsWith("/super-admin") ||
+    path.startsWith("/platform")
+  );
+}
 
-      existing.addEventListener("load", () => resolve(), {
-        once: true,
-      });
-      existing.addEventListener(
-        "error",
-        () =>
-          reject(
-            new Error("Firebase SDK를 불러오지 못했습니다."),
-          ),
-        { once: true },
-      );
-      return;
-    }
+function ensureScript(src: string) {
+  const existing = document.querySelector(
+    `script[src="${src}"]`,
+  );
 
-    const script = document.createElement("script");
-    script.src = src;
-    script.async = true;
-    script.addEventListener(
-      "load",
-      () => {
-        script.dataset.loaded = "true";
-        resolve();
-      },
-      { once: true },
-    );
-    script.addEventListener(
-      "error",
-      () =>
-        reject(
-          new Error("Firebase SDK를 불러오지 못했습니다."),
-        ),
-      { once: true },
-    );
-    document.head.appendChild(script);
-  });
+  if (existing) return;
+
+  const script = document.createElement("script");
+  script.src = src;
+  script.async = true;
+  document.head.appendChild(script);
+}
+
+async function waitForFirebase(timeoutMs = 10_000) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (window.firebase?.messaging) return;
+    await new Promise((resolve) => window.setTimeout(resolve, 100));
+  }
+
+  throw new Error("Firebase SDK를 불러오지 못했습니다.");
 }
 
 async function getAccessToken() {
@@ -79,28 +70,41 @@ async function getAccessToken() {
   return session?.access_token ?? "";
 }
 
-async function registerGuardianPush() {
+async function registerGuardianPush(
+  forceRefresh = false,
+): Promise<RegisterResult> {
   if (
     typeof window === "undefined" ||
     typeof Notification === "undefined" ||
     !("serviceWorker" in navigator)
   ) {
-    return;
+    return {
+      ok: false,
+      reason: "이 기기에서는 푸시 알림을 지원하지 않습니다.",
+    };
   }
 
-  // 병원 프로그램에서는 보호자 푸시 토큰을 등록하지 않습니다.
-  if (
-    window.location.pathname.startsWith("/hospital-admin") ||
-    window.location.pathname.startsWith("/auth/hospital")
-  ) {
-    return;
+  if (!isGuardianPage()) {
+    return {
+      ok: false,
+      reason: "병원 관리자 화면에서는 등록하지 않습니다.",
+    };
   }
 
   const accessToken = await getAccessToken();
-  if (!accessToken) return;
+
+  if (!accessToken) {
+    return {
+      ok: false,
+      reason: "보호자 로그인이 필요합니다.",
+    };
+  }
 
   if (Notification.permission !== "granted") {
-    return;
+    return {
+      ok: false,
+      reason: "알림 권한을 먼저 허용해 주세요.",
+    };
   }
 
   const previousLock = Number(
@@ -108,10 +112,14 @@ async function registerGuardianPush() {
   );
 
   if (
+    !forceRefresh &&
     Number.isFinite(previousLock) &&
     Date.now() - previousLock < REGISTER_LOCK_MS
   ) {
-    return;
+    return {
+      ok: false,
+      reason: "푸시 연결을 확인 중입니다.",
+    };
   }
 
   window.localStorage.setItem(
@@ -131,12 +139,6 @@ async function registerGuardianPush() {
           },
           cache: "no-store",
         }),
-        loadScript(
-          "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js",
-        ),
-        loadScript(
-          "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js",
-        ),
       ]);
 
     const configResult = await configResponse
@@ -148,32 +150,44 @@ async function registerGuardianPush() {
         .catch(() => ({}));
 
     if (!configResponse.ok || !configResult.clientReady) {
-      console.error(
-        "PAWU push config is incomplete:",
-        configResult.missingClientEnv ?? [],
-      );
-      return;
+      return {
+        ok: false,
+        reason: `Firebase 웹 설정이 부족합니다: ${(
+          configResult.missingClientEnv ?? []
+        ).join(", ")}`,
+      };
     }
 
     if (!configResult.serverReady) {
-      console.error(
-        "PAWU Firebase service account is not configured.",
-      );
-      return;
+      return {
+        ok: false,
+        reason:
+          "Firebase 서버 설정이 완료되지 않았습니다.",
+      };
     }
 
     if (configResult.projectMatch === false) {
-      console.error(
-        "PAWU Firebase project mismatch:",
-        configResult.clientProjectId,
-        configResult.serverProjectId,
-      );
-      return;
+      return {
+        ok: false,
+        reason:
+          "Firebase 앱 설정과 서버 서비스 계정의 프로젝트가 다릅니다.",
+      };
     }
 
+    ensureScript(
+      "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js",
+    );
+    ensureScript(
+      "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js",
+    );
+
+    await waitForFirebase();
+
     if (!window.firebase) {
-      console.error("PAWU Firebase SDK initialization failed.");
-      return;
+      return {
+        ok: false,
+        reason: "Firebase SDK 초기화에 실패했습니다.",
+      };
     }
 
     if (!window.firebase.apps.length) {
@@ -194,32 +208,36 @@ async function registerGuardianPush() {
       serviceWorkerRegistration,
     });
 
-    // DB에 활성 토큰이 없는데 브라우저 캐시에 오래된 토큰만 남아 있으면
-    // Firebase 토큰을 폐기한 뒤 새 토큰을 강제로 발급합니다.
-    if (
+    const needsFreshToken =
+      forceRefresh ||
       !registrationStatusResponse.ok ||
-      !registrationStatus.registered
-    ) {
-      if (fcmToken && messaging.deleteToken) {
-        try {
-          await messaging.deleteToken(fcmToken);
-        } catch (deleteError) {
-          console.warn(
-            "PAWU stale FCM token delete failed:",
-            deleteError,
-          );
-        }
+      !registrationStatus.registered;
 
-        fcmToken = await messaging.getToken({
-          vapidKey: configResult.config.vapidKey,
-          serviceWorkerRegistration,
-        });
+    if (
+      needsFreshToken &&
+      fcmToken &&
+      messaging.deleteToken
+    ) {
+      try {
+        await messaging.deleteToken(fcmToken);
+      } catch (deleteError) {
+        console.warn(
+          "PAWU previous FCM token delete failed:",
+          deleteError,
+        );
       }
+
+      fcmToken = await messaging.getToken({
+        vapidKey: configResult.config.vapidKey,
+        serviceWorkerRegistration,
+      });
     }
 
     if (!fcmToken) {
-      console.error("PAWU FCM token was not issued.");
-      return;
+      return {
+        ok: false,
+        reason: "휴대폰 푸시 토큰을 발급하지 못했습니다.",
+      };
     }
 
     const saveResponse = await fetch("/api/push/register", {
@@ -239,11 +257,12 @@ async function registerGuardianPush() {
       .catch(() => ({}));
 
     if (!saveResponse.ok) {
-      console.error(
-        "PAWU push token registration failed:",
-        saveResult.message ?? saveResponse.status,
-      );
-      return;
+      return {
+        ok: false,
+        reason:
+          saveResult.message ??
+          "푸시 토큰을 저장하지 못했습니다.",
+      };
     }
 
     await fetch("/api/notifications/preferences", {
@@ -259,35 +278,112 @@ async function registerGuardianPush() {
     });
 
     window.localStorage.removeItem(REGISTER_LOCK_KEY);
+    return { ok: true };
   } catch (error) {
-    console.error("PAWU automatic push registration failed:", error);
     window.localStorage.removeItem(REGISTER_LOCK_KEY);
+
+    return {
+      ok: false,
+      reason:
+        error instanceof Error
+          ? error.message
+          : "푸시 알림 연결에 실패했습니다.",
+    };
   }
 }
 
 export default function AutoPushRegistration() {
+  const [visible, setVisible] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const checkAndRegister = useCallback(async () => {
+    if (
+      typeof window === "undefined" ||
+      !isGuardianPage()
+    ) {
+      setVisible(false);
+      return;
+    }
+
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      setVisible(false);
+      return;
+    }
+
+    if (typeof Notification === "undefined") {
+      setMessage(
+        "이 기기에서는 푸시 알림을 지원하지 않습니다.",
+      );
+      setVisible(true);
+      return;
+    }
+
+    if (Notification.permission === "denied") {
+      setMessage(
+        "휴대폰 설정에서 PAWU 알림 권한을 허용해 주세요.",
+      );
+      setVisible(true);
+      return;
+    }
+
+    if (Notification.permission === "default") {
+      // 브라우저 정책상 권한 요청은 사용자의 버튼 클릭이 필요합니다.
+      setMessage(
+        "앱을 닫아도 병원 채팅 알림을 받으려면 알림 권한을 허용해 주세요.",
+      );
+      setVisible(true);
+      return;
+    }
+
+    const result = await registerGuardianPush();
+
+    if (result.ok) {
+      setVisible(false);
+      setMessage("");
+      return;
+    }
+
+    if (result.reason !== "푸시 연결을 확인 중입니다.") {
+      setMessage(result.reason);
+      setVisible(true);
+    }
+  }, []);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void registerGuardianPush();
-    }, 1200);
+      void checkAndRegister();
+    }, 1000);
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+      if (
+        event === "SIGNED_IN" ||
+        event === "TOKEN_REFRESHED"
+      ) {
         window.setTimeout(() => {
-          void registerGuardianPush();
-        }, 800);
+          void checkAndRegister();
+        }, 700);
+      }
+
+      if (event === "SIGNED_OUT") {
+        setVisible(false);
       }
     });
 
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        void registerGuardianPush();
+        void checkAndRegister();
       }
     };
 
-    document.addEventListener("visibilitychange", onVisible);
+    document.addEventListener(
+      "visibilitychange",
+      onVisible,
+    );
     window.addEventListener("focus", onVisible);
 
     return () => {
@@ -299,7 +395,85 @@ export default function AutoPushRegistration() {
       );
       window.removeEventListener("focus", onVisible);
     };
-  }, []);
+  }, [checkAndRegister]);
 
-  return null;
+  async function enablePush() {
+    setWorking(true);
+    setMessage("");
+
+    try {
+      if (
+        typeof Notification === "undefined" ||
+        !("serviceWorker" in navigator)
+      ) {
+        setMessage(
+          "이 기기에서는 푸시 알림을 지원하지 않습니다.",
+        );
+        return;
+      }
+
+      const permission =
+        await Notification.requestPermission();
+
+      if (permission !== "granted") {
+        setMessage(
+          "알림이 차단되었습니다. 휴대폰 설정에서 PAWU 알림을 허용해 주세요.",
+        );
+        setVisible(true);
+        return;
+      }
+
+      const result = await registerGuardianPush(true);
+
+      if (!result.ok) {
+        setMessage(result.reason);
+        setVisible(true);
+        return;
+      }
+
+      setMessage("푸시 알림 연결이 완료되었습니다.");
+      window.setTimeout(() => {
+        setVisible(false);
+        setMessage("");
+      }, 1500);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  if (!visible) return null;
+
+  return (
+    <div className="fixed inset-x-4 bottom-24 z-[120] mx-auto max-w-md rounded-3xl border border-[#b9d8cf] bg-white p-5 shadow-2xl md:bottom-6">
+      <p className="text-xs font-black tracking-[0.16em] text-[#d86c57]">
+        PAWU NOTIFICATION
+      </p>
+      <h2 className="mt-1 text-lg font-black text-[#153f34]">
+        보호자 알림 연결
+      </h2>
+      <p className="mt-2 text-sm leading-6 text-slate-600">
+        {message}
+      </p>
+
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          disabled={working}
+          onClick={() => void enablePush()}
+          className="flex-1 rounded-2xl bg-[#153f34] px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+        >
+          {working ? "연결 중..." : "알림 허용 및 연결"}
+        </button>
+
+        <button
+          type="button"
+          disabled={working}
+          onClick={() => setVisible(false)}
+          className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-600"
+        >
+          나중에
+        </button>
+      </div>
+    </div>
+  );
 }
