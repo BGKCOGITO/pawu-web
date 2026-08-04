@@ -719,7 +719,7 @@ export default function ConversationRoom({ conversationId, mode }: { conversatio
     // 전체 대화를 주기적으로 재확인해 양쪽 화면을 복구합니다.
     const reconciliationTimer = window.setInterval(() => {
       void load(true);
-    }, 5000);
+    }, 15000);
 
     document.addEventListener("visibilitychange", refreshIfNeeded);
     window.addEventListener("focus", refreshIfNeeded);

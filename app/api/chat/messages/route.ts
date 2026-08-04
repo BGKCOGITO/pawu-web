@@ -6,6 +6,90 @@ import {
   readBearer,
 } from "../../../../lib/chat-access";
 
+
+export async function GET(request: Request) {
+  const user = await getAuthUser(readBearer(request));
+  if (!user) {
+    return NextResponse.json(
+      { ok: false, message: "로그인이 필요합니다." },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      },
+    );
+  }
+
+  const url = new URL(request.url);
+  const conversationId = Number(url.searchParams.get("conversationId"));
+  const afterId = Number(url.searchParams.get("afterId") ?? "0");
+
+  if (!Number.isInteger(conversationId)) {
+    return NextResponse.json(
+      { ok: false, message: "채팅방 정보가 올바르지 않습니다." },
+      {
+        status: 400,
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      },
+    );
+  }
+
+  const access = await canAccessConversation(conversationId, user.id);
+  if (!access) {
+    return NextResponse.json(
+      { ok: false, message: "채팅방 접근 권한이 없습니다." },
+      {
+        status: 403,
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      },
+    );
+  }
+
+  let query = supabaseAdmin
+    .from("chat_messages")
+    .select(
+      "id,sender_user_id,sender_type,message_type,content,file_name,public_url,mime_type,created_at,read_at",
+    )
+    .eq("conversation_id", conversationId)
+    .order("id", { ascending: true })
+    .limit(200);
+
+  if (Number.isInteger(afterId) && afterId > 0) {
+    query = query.gt("id", afterId);
+  }
+
+  const { data: messages, error } = await query;
+
+  if (error) {
+    return NextResponse.json(
+      { ok: false, message: error.message },
+      {
+        status: 400,
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      },
+    );
+  }
+
+  return NextResponse.json(
+    {
+      ok: true,
+      messages: messages ?? [],
+    },
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    },
+  );
+}
+
 export async function POST(request: Request) {
   const user = await getAuthUser(readBearer(request));
   if (!user) {
@@ -58,7 +142,9 @@ export async function POST(request: Request) {
       mime_type: body.mimeType ?? null,
       file_size: body.fileSize ?? null,
     })
-    .select("id, created_at")
+    .select(
+      "id,sender_user_id,sender_type,message_type,content,file_name,public_url,mime_type,created_at,read_at",
+    )
     .single();
 
   if (error || !created) {
@@ -114,7 +200,18 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, messageId: created.id });
+  return NextResponse.json(
+    {
+      ok: true,
+      messageId: created.id,
+      message: created,
+    },
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    },
+  );
 }
 
 export async function PATCH(request: Request) {
