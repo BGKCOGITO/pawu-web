@@ -29,10 +29,7 @@ function loadScript(src: string) {
     ) as HTMLScriptElement | null;
 
     if (existing) {
-      if (
-        existing.dataset.loaded === "true" ||
-        existing.readyState === "complete"
-      ) {
+      if (existing.dataset.loaded === "true") {
         resolve();
         return;
       }
