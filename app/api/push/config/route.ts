@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { isFirebaseAdminConfigured } from "../../../../lib/push/fcm-admin";
+import {
+  getFirebaseAdminProjectId,
+  isFirebaseAdminConfigured,
+} from "../../../../lib/push/fcm-admin";
 
 export async function GET() {
   const config = {
@@ -22,6 +25,13 @@ export async function GET() {
   const missingClientEnv = requiredClientValues.filter(([, value]) => !value).map(([name]) => name);
   const clientReady = missingClientEnv.length === 0;
   const serverReady = isFirebaseAdminConfigured();
+  const serverProjectId = getFirebaseAdminProjectId();
+  const clientProjectId = config.projectId;
+  const projectMatch = Boolean(
+    serverProjectId &&
+      clientProjectId &&
+      serverProjectId === clientProjectId,
+  );
 
   return NextResponse.json({
     ok: true,
@@ -29,7 +39,12 @@ export async function GET() {
     clientReady,
     serverReady,
     missingClientEnv,
-    missingServerEnv: serverReady ? [] : ["FIREBASE_SERVICE_ACCOUNT_JSON"],
+    missingServerEnv: serverReady
+      ? []
+      : ["FIREBASE_SERVICE_ACCOUNT_JSON"],
+    clientProjectId,
+    serverProjectId,
+    projectMatch,
     config,
   });
 }

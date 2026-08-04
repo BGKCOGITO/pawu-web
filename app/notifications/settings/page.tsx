@@ -157,10 +157,13 @@ export default function NotificationSettingsPage() {
               <p className="mt-1 text-sm text-gray-500">
                 현재 상태: {registered ? "푸시 토큰 등록됨" : permission === "granted" ? "권한은 허용됐지만 토큰 미등록" : permission === "denied" ? "차단됨" : permission === "unsupported" ? "지원하지 않음" : "연결 전"}
               </p>
-              <p className="mt-2 text-xs leading-5 text-gray-500">앱을 닫거나 화면을 잠가도 병원에서 새 메시지가 오면 시스템 알림으로 알려드립니다.</p>
+              <p className="mt-2 text-xs leading-5 text-gray-500">
+                로그인 후 알림 권한이 허용되어 있으면 토큰은 자동으로 등록됩니다.
+                연결이 풀린 경우 아래 버튼으로 즉시 재발급할 수 있습니다.
+              </p>
             </div>
             <button type="button" disabled={working} onClick={() => void enableBrowserNotification()} className="rounded-2xl bg-[#153f34] px-5 py-3 font-bold text-white disabled:opacity-50">
-              {working ? "연결 중..." : "푸시 알림 연결"}
+              {working ? "연결 중..." : registered ? "푸시 다시 연결" : "푸시 알림 연결"}
             </button>
           </div>
         </section>

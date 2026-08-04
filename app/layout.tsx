@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import AppShell from "../components/AppShell";
 import PwaBridge from "../components/PwaBridge";
+import AutoPushRegistration from "../components/push/AutoPushRegistration";
 
 export const metadata: Metadata = {
   title: "PAWU",
@@ -27,6 +28,7 @@ export default function RootLayout({
       <body>
         <AppShell>{children}</AppShell>
         <PwaBridge />
+        <AutoPushRegistration />
       </body>
     </html>
   );
