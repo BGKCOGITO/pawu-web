@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 
 const NATIVE_MARKER_KEY = "pawu_native_push_android";
 const NATIVE_TOKEN_KEY = "pawu_native_fcm_token_pending";
+const NATIVE_SYNCED_TOKEN_KEY = "pawu_native_fcm_token_synced";
 
 export function isNativeAndroidPushApp() {
   if (typeof window === "undefined") return false;
@@ -87,7 +88,15 @@ export default function NativePushBridge() {
       const saved = await registerNativeToken(token);
       if (!saved) return;
 
+      window.localStorage.setItem(
+        NATIVE_SYNCED_TOKEN_KEY,
+        token,
+      );
       window.localStorage.removeItem(NATIVE_TOKEN_KEY);
+
+      window.dispatchEvent(
+        new CustomEvent("pawu:native-push-registered"),
+      );
 
       const url = new URL(window.location.href);
       url.searchParams.delete("pawu_native");
@@ -99,6 +108,22 @@ export default function NativePushBridge() {
 
     void syncToken();
 
+    const retryTimer = window.setInterval(() => {
+      void syncToken();
+    }, 10_000);
+
+    const syncWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void syncToken();
+      }
+    };
+
+    window.addEventListener("focus", syncWhenVisible);
+    document.addEventListener(
+      "visibilitychange",
+      syncWhenVisible,
+    );
+
     const { data: listener } =
       supabase.auth.onAuthStateChange((event) => {
         if (
@@ -109,7 +134,18 @@ export default function NativePushBridge() {
         }
       });
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      window.clearInterval(retryTimer);
+      window.removeEventListener(
+        "focus",
+        syncWhenVisible,
+      );
+      document.removeEventListener(
+        "visibilitychange",
+        syncWhenVisible,
+      );
+      listener.subscription.unsubscribe();
+    };
   }, [router]);
 
   return null;

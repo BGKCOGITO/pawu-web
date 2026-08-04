@@ -121,11 +121,10 @@ export async function sendGuardianChatPush(userId: string, payload: PushPayload)
       body: JSON.stringify({
         message: row.device_name === "PAWU Android Native"
           ? {
+              // Native Android tokens use high-priority data messages.
+              // PawuFirebaseMessagingService creates one consistent notification
+              // in foreground, background, and after removal from recent apps.
               token: row.token,
-              notification: {
-                title: payload.title,
-                body: payload.body,
-              },
               data: {
                 title: payload.title,
                 body: payload.body,
@@ -135,14 +134,7 @@ export async function sendGuardianChatPush(userId: string, payload: PushPayload)
               android: {
                 priority: "high",
                 ttl: "86400s",
-                notification: {
-                  channel_id: "pawu_messages",
-                  sound: "default",
-                  default_vibrate_timings: true,
-                  notification_priority: "PRIORITY_HIGH",
-                  tag: payload.tag ?? "pawu-chat-message",
-                  click_action: "android.intent.action.VIEW",
-                },
+                direct_boot_ok: true,
               },
             }
           : {
