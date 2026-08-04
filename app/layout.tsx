@@ -3,6 +3,7 @@ import "./globals.css";
 import AppShell from "../components/AppShell";
 import PwaBridge from "../components/PwaBridge";
 import PushNotificationManager from "../components/push/PushNotificationManager";
+import NativePushBridge from "../components/push/NativePushBridge";
 
 export const metadata: Metadata = {
   title: "PAWU",
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body>
         <AppShell>{children}</AppShell>
         <PwaBridge />
+        <NativePushBridge />
         <PushNotificationManager />
       </body>
     </html>

@@ -106,7 +106,7 @@ export async function sendGuardianChatPush(userId: string, payload: PushPayload)
 
   const { data: rows, error } = await supabaseAdmin
     .from("fcm_tokens")
-    .select("id,token")
+    .select("id,token,device_name")
     .eq("user_id", userId)
     .eq("is_active", true);
   if (error) throw new Error(`FCM token lookup failed: ${error.message}`);
@@ -119,46 +119,62 @@ export async function sendGuardianChatPush(userId: string, payload: PushPayload)
       method: "POST",
       headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
       body: JSON.stringify({
-        message: {
-          token: row.token,
-          notification: {
-            title: payload.title,
-            body: payload.body,
-          },
-          data: {
-            title: payload.title,
-            body: payload.body,
-            url: payload.url,
-            tag:
-              payload.tag ??
-              "pawu-chat-message",
-          },
-          webpush: {
-            headers: {
-              Urgency: "high",
-              TTL: "86400",
-            },
-            notification: {
-              title: payload.title,
-              body: payload.body,
-              icon:
-                "/icons/pawu-v903-192.png",
-              badge:
-                "/icons/pawu-v903-192.png",
-              tag:
-                payload.tag ??
-                "pawu-chat-message",
-              renotify: true,
-              vibrate: [250, 100, 250],
+        message: row.device_name === "PAWU Android Native"
+          ? {
+              token: row.token,
+              notification: {
+                title: payload.title,
+                body: payload.body,
+              },
               data: {
+                title: payload.title,
+                body: payload.body,
                 url: payload.url,
+                tag: payload.tag ?? "pawu-chat-message",
+              },
+              android: {
+                priority: "high",
+                ttl: "86400s",
+                notification: {
+                  channel_id: "pawu_messages",
+                  sound: "default",
+                  default_vibrate_timings: true,
+                  notification_priority: "PRIORITY_HIGH",
+                  tag: payload.tag ?? "pawu-chat-message",
+                  click_action: "android.intent.action.VIEW",
+                },
+              },
+            }
+          : {
+              token: row.token,
+              notification: {
+                title: payload.title,
+                body: payload.body,
+              },
+              data: {
+                title: payload.title,
+                body: payload.body,
+                url: payload.url,
+                tag: payload.tag ?? "pawu-chat-message",
+              },
+              webpush: {
+                headers: {
+                  Urgency: "high",
+                  TTL: "86400",
+                },
+                notification: {
+                  title: payload.title,
+                  body: payload.body,
+                  icon: "/icons/pawu-v903-192.png",
+                  badge: "/icons/pawu-v903-192.png",
+                  tag: payload.tag ?? "pawu-chat-message",
+                  renotify: true,
+                  vibrate: [250, 100, 250],
+                  data: { url: payload.url },
+                },
+                fcm_options: { link: payload.url },
               },
             },
-            fcm_options: {
-              link: payload.url,
-            },
-          },
-        },
       }),
       cache: "no-store",
     });

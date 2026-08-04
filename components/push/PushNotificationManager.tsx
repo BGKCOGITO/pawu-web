@@ -12,6 +12,7 @@ import {
   type PushStage,
 } from "@/lib/push/client";
 import { supabase } from "@/lib/supabase";
+import { isNativeAndroidPushApp } from "@/components/push/NativePushBridge";
 
 const DISMISS_KEY =
   "pawu_push_prompt_dismissed_session";
@@ -51,7 +52,8 @@ export default function PushNotificationManager() {
   const inspect = useCallback(async () => {
     if (
       typeof window === "undefined" ||
-      !guardianPath()
+      !guardianPath() ||
+      isNativeAndroidPushApp()
     ) {
       setVisible(false);
       return;
