@@ -5,6 +5,7 @@ import {
   getAuthUser,
   readBearer,
 } from "../../../../lib/chat-access";
+import { sendGuardianChatPush } from "../../../../lib/push/fcm-admin";
 
 
 export async function GET(request: Request) {
@@ -185,17 +186,67 @@ export async function POST(request: Request) {
         const hospital = Array.isArray(hospitalValue) ? hospitalValue[0] : hospitalValue;
         const preview = messageType === "text" ? content.slice(0, 100) : body.fileName ?? "첨부파일을 보냈습니다.";
 
+        const pushTitle = `${hospital?.name ?? "동물병원"}에서 새 메시지가 왔습니다`;
+        const pushUrl = `/chat/${conversationId}`;
+        const pushTag = `pawu-chat-${conversationId}`;
+
         await supabaseAdmin.from("notifications").insert({
           user_id: guardianUserId,
           type: "chat_message",
-          title: `${hospital?.name ?? "동물병원"}에서 새 메시지가 왔습니다`,
+          title: pushTitle,
           body: preview,
-          link_url: `/chat/${conversationId}`,
-          metadata: { conversation_id: conversationId, hospital_id: conversation?.hospital_id },
+          link_url: pushUrl,
+          metadata: {
+            conversation_id: conversationId,
+            hospital_id: conversation?.hospital_id,
+          },
         });
 
-        // V9.7.0: 시스템 푸시는 DB trigger → push_jobs → Supabase Edge Function에서 처리한다.
-        // 채팅 API 응답과 FCM 발송을 분리해 앱/브라우저 상태와 무관하게 재시도할 수 있다.
+        // 앱이 종료되거나 백그라운드에 있어도 바로 울리도록
+        // Vercel 서버에서 FCM을 직접 발송한다.
+        // DB trigger가 만든 push_jobs는 직접 발송 성공 시 sent 처리하여
+        // Edge Function worker와의 중복 알림을 방지한다.
+        try {
+          const pushResult = await sendGuardianChatPush(
+            guardianUserId,
+            {
+              title: pushTitle,
+              body: preview,
+              url: pushUrl,
+              tag: pushTag,
+            },
+          );
+
+          if (pushResult.sent > 0) {
+            const { data: queuedJob } = await supabaseAdmin
+              .from("push_jobs")
+              .select("id")
+              .eq("source_type", "chat_message")
+              .eq("source_id", created.id)
+              .eq("user_id", guardianUserId)
+              .maybeSingle();
+
+            if (queuedJob?.id) {
+              await supabaseAdmin.rpc("finish_push_job", {
+                p_job_id: queuedJob.id,
+                p_status: "sent",
+                p_error: null,
+              });
+            }
+          } else {
+            console.warn(
+              "PAWU guardian chat push skipped:",
+              pushResult.reason ?? "unknown",
+            );
+          }
+        } catch (pushError) {
+          // 직접 발송 실패 시 DB trigger로 생성된 push_jobs를 남겨
+          // Edge Function worker가 재시도할 수 있도록 한다.
+          console.error(
+            "PAWU guardian chat direct push failed:",
+            pushError,
+          );
+        }
       }
     }
   }
