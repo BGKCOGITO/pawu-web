@@ -75,3 +75,20 @@ V10.0.0 RC1 출시 후보
 - 메시지 POST 응답에 생성된 메시지 전체 객체 반환
 - 캐시 방지 헤더 적용
 - 1초 증분 동기화 유지, 전체 재조회는 15초 복구용으로 축소
+
+
+## V13.0.0 푸시 시스템 재구축
+- Firebase CDN 동적 스크립트 방식 제거
+- firebase npm SDK 10.14.1 기반으로 클라이언트 초기화 통일
+- 서비스 워커 `/firebase-messaging-sw.js` 하나만 사용
+- 기존 `/sw.js` 등 레거시 서비스 워커 자동 해제
+- 알림 권한 → 설정 → 서비스 워커 → Firebase → 토큰 → DB 저장 단계 표시
+- FCM 토큰 발급 25초 타임아웃 및 오류 화면 표시
+- 정상 연결 후 알림 안내창 자동 닫힘
+- 수동 토큰 초기화·재발급 기능 제공
+- 서버 푸시는 notification + data payload로 앱 종료 상태 지원
+
+
+## V13.0.1
+- Fix: Firebase onMessage Unsubscribe 반환 타입과 cleanup 함수 타입 불일치 수정
+- Build: PushNotificationManager cleanup을 optional function으로 안전하게 처리

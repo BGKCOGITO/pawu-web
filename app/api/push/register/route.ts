@@ -10,19 +10,44 @@ export async function POST(request: Request) {
   const token = String(body.token ?? "").trim();
   if (!token) return NextResponse.json({ ok: false, message: "FCM 토큰이 없습니다." }, { status: 400 });
 
-  const { error } = await supabaseAdmin.from("fcm_tokens").upsert(
-    {
-      user_id: user.id,
-      token,
-      device_name: String(body.deviceName ?? "휴대폰").slice(0, 120),
-      is_active: true,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "token" },
-  );
+  const deviceName = String(
+    body.deviceName ?? "휴대폰",
+  ).slice(0, 120);
 
-  if (error) return NextResponse.json({ ok: false, message: error.message }, { status: 400 });
-  return NextResponse.json({ ok: true });
+  const { error } = await supabaseAdmin
+    .from("fcm_tokens")
+    .upsert(
+      {
+        user_id: user.id,
+        token,
+        device_name: deviceName,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "token" },
+    );
+
+  if (error) {
+    return NextResponse.json(
+      { ok: false, message: error.message },
+      { status: 400 },
+    );
+  }
+
+  await supabaseAdmin
+    .from("fcm_tokens")
+    .update({
+      is_active: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", user.id)
+    .eq("device_name", deviceName)
+    .neq("token", token);
+
+  return NextResponse.json({
+    ok: true,
+    tokenPreview: `${token.slice(0, 10)}…${token.slice(-6)}`,
+  });
 }
 
 export async function GET(request: Request) {

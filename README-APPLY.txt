@@ -1,73 +1,120 @@
-PAWU V12.2.7 보호자 푸시 자동 등록·복구 교체본
+PAWU V13.0.1 푸시 시스템 빌드 오류 수정 교체본
 
-이번에는 전체 app 폴더의 실제 푸시 흐름을 기준으로 수정했습니다.
+수정한 오류
+components/push/PushNotificationManager.tsx:153
+Type 'Unsubscribe' is not assignable to type '() => undefined'.
 
-확인된 실제 문제
-1. FCM 토큰 생성과 DB 저장은 /notifications/settings 화면에서
-   사용자가 직접 '푸시 알림 연결'을 눌러야만 실행되었습니다.
-2. 보호자 앱에는 해당 화면으로 바로 들어가는 입력창이 없으므로,
-   토큰을 삭제하거나 만료되면 앱을 다시 실행해도 fcm_tokens가 비어 있었습니다.
-3. 브라우저 저장소에 만료된 토큰이 남아 있으면 getToken()이 같은 토큰을
-   다시 반환할 수 있어 Firebase 404 후 is_active=false가 반복될 수 있었습니다.
-4. 서버 코드는 모든 404를 토큰 만료로 간주해 is_active=false로 바꾸고 있어,
-   Firebase 프로젝트 불일치 같은 설정 오류도 토큰 문제처럼 보였습니다.
+수정 내용
+- removeForeground 타입을 (() => void) | undefined 로 변경
+- cleanup 시 removeForeground?.()로 안전하게 호출
+- Firebase onMessage가 반환하는 Unsubscribe 타입과 일치
 
-이번 수정
-- 보호자 로그인 후 전역에서 FCM 토큰 자동 등록
-- 앱 실행, 로그인, 토큰 갱신, 포커스 복귀 시 자동 확인
-- DB에 활성 토큰이 없으면 브라우저의 기존 토큰 삭제 후 새 토큰 강제 발급
-- 새 토큰을 fcm_tokens에 is_active=true로 자동 저장
-- chat_messages 및 browser_push 환경설정 자동 활성화
-- 병원 관리자 화면에서는 보호자 토큰 등록 제외
-- Firebase 웹 프로젝트와 서비스 계정 프로젝트 일치 여부 진단
-- 일반적인 404만으로 토큰을 비활성화하지 않음
-- Firebase가 명시적으로 UNREGISTERED라고 반환할 때만 is_active=false 처리
-- 기존 수동 '푸시 알림 연결' 화면도 복구용으로 유지
+검증
+- 수정 파일에 대한 TypeScript 정적 타입 검증 통과
+- 사용자에게 발생한 TS2322 오류 재현 지점을 제거함
+- 이 실행 환경의 npm 패키지 레지스트리에서 일부 패키지를 제공하지 않아 전체 npm install/next build는 여기서 실행하지 못함
+- 사용자 PC에서는 아래 명령으로 전체 빌드를 최종 확인해야 함
 
-교체 파일
-- app/layout.tsx
-- app/api/push/config/route.ts
-- app/notifications/settings/page.tsx
-- components/push/AutoPushRegistration.tsx
-- lib/push/fcm-admin.ts
-
-적용 대상
+적용 위치
 C:\Users\USER\pawu-web
 
-적용 및 배포
+적용 순서
 1. ZIP 압축 해제
-2. app, components, lib 폴더를 C:\Users\USER\pawu-web 에 덮어쓰기
+2. 전체 내용을 C:\Users\USER\pawu-web에 폴더 구조 그대로 덮어쓰기
+3. 아래 명령 실행
 
 cd C:\Users\USER\pawu-web
+npm install
 npm run typecheck
 npm run build
 
+정상 통과 후 배포
 git add .
-git commit -m "Automatically register and recover guardian push token"
+git commit -m "Fix PAWU V13 push build types"
 git push origin main
 
-배포 후 테스트
-1. Vercel Ready 확인
-2. Supabase fcm_tokens의 기존 행은 삭제된 상태로 둡니다.
-3. 보호자 앱을 완전히 종료한 뒤 다시 실행하고 로그인합니다.
-4. 휴대폰의 PAWU 알림 권한은 허용 상태여야 합니다.
-5. 앱 홈에서 5~10초 기다립니다.
-6. Supabase fcm_tokens 새로고침
-   - 새 행 생성
-   - is_active=true
-   - updated_at=방금 시간
-7. 앱을 완전히 종료하고 병원에서 메시지를 전송합니다.
-8. 소리·진동·알림 수신을 확인합니다.
+PAWU V13.0.0 보호자 푸시 시스템 전면 재구축
 
-진단
-브라우저 또는 앱에서 아래 API를 열면 프로젝트 일치 여부를 확인할 수 있습니다.
-https://pawu-web.vercel.app/api/push/config
+이 교체본은 기존 푸시 코드 위에 패치를 덧붙이는 방식이 아니라,
+최신 PAWU 프로젝트를 기준으로 보호자 푸시 등록 흐름을 다시 구성한 버전입니다.
 
-정상 값
-- clientReady: true
-- serverReady: true
-- projectMatch: true
+핵심 변경
+1. Firebase CDN script 주입 제거
+2. firebase npm SDK 10.14.1 사용
+3. 서비스 워커 /firebase-messaging-sw.js 하나로 통일
+4. 기존 public/sw.js 또는 다른 등록 worker 자동 해제
+5. 권한→설정→서비스 워커→Firebase→토큰→DB 저장 단계 표시
+6. FCM getToken 25초 타임아웃
+7. 성공하면 안내창 자동 닫힘
+8. 실패하면 멈춘 단계와 실제 오류 문구 표시
+9. 토큰 초기화 후 재연결 버튼 제공
+10. 서버 notification + data payload로 앱 종료 상태 알림 지원
 
-projectMatch가 false라면
-NEXT_PUBLIC_FIREBASE_PROJECT_ID와 FIREBASE_SERVICE_ACCOUNT_JSON의 project_id가
-서로 다른 Firebase 프로젝트이므로 환경변수를 동일 프로젝트 기준으로 맞춰야 합니다.
+교체 파일
+- package.json
+- app/layout.tsx
+- app/firebase-messaging-sw.js/route.ts
+- app/api/push/config/route.ts
+- app/api/push/register/route.ts
+- app/api/chat/messages/route.ts
+- app/notifications/settings/page.tsx
+- components/PwaBridge.tsx
+- components/push/PushNotificationManager.tsx
+- components/push/AutoPushRegistration.tsx
+- lib/push/client.ts
+- lib/push/fcm-admin.ts
+- PAWU_MASTER.md
+- PROJECT_STATUS.md
+- CHANGELOG.md
+
+적용 위치
+C:\Users\USER\pawu-web
+
+적용 순서
+1. PAWU 프로젝트 백업
+2. ZIP 압축 해제
+3. ZIP의 app, components, lib, package.json 및 문서 파일을
+   C:\Users\USER\pawu-web에 폴더 구조 그대로 덮어쓰기
+
+4. 설치 및 검사
+cd C:\Users\USER\pawu-web
+npm install
+npm run typecheck
+npm run build
+
+5. 배포
+git add .
+git commit -m "Rebuild PAWU push notification system V13"
+git push origin main
+
+6. Vercel 배포 Ready 확인
+
+휴대폰 초기화
+1. Supabase fcm_tokens 기존 행 삭제
+2. 휴대폰 설정 → 앱 → PAWU → 저장공간 → 데이터 삭제
+3. Chrome 설정 → 사이트 설정 → 알림에서 pawu-web.vercel.app 허용 확인
+4. PAWU 앱 실행 및 보호자 로그인
+5. 알림 허용 및 연결 버튼 누르기
+
+정상 진행 화면
+- 권한 확인
+- Firebase 설정
+- 백그라운드 서비스
+- Firebase 초기화
+- 토큰 발급
+- 서버 저장
+- 완료
+
+정상 결과
+- 안내창 자동 닫힘
+- Supabase fcm_tokens 새 행 생성
+- is_active = true
+- 앱 종료 후 병원 메시지 알림 수신
+
+멈추는 경우
+안내창에 현재 단계와 실제 오류가 표시됩니다.
+이제 USB 디버깅 없이도 오류 위치를 화면에서 바로 확인할 수 있습니다.
+
+중요
+npm install을 반드시 먼저 실행해야 합니다.
+이번 버전은 firebase 10.14.1 패키지를 새로 추가합니다.

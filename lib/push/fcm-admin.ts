@@ -121,17 +121,41 @@ export async function sendGuardianChatPush(userId: string, payload: PushPayload)
       body: JSON.stringify({
         message: {
           token: row.token,
-          // 데이터 전용 메시지로 전송해 Service Worker가 알림을 한 번만 표시한다.
+          notification: {
+            title: payload.title,
+            body: payload.body,
+          },
           data: {
             title: payload.title,
             body: payload.body,
             url: payload.url,
-            tag: payload.tag ?? "pawu-chat-message",
+            tag:
+              payload.tag ??
+              "pawu-chat-message",
           },
           webpush: {
             headers: {
               Urgency: "high",
               TTL: "86400",
+            },
+            notification: {
+              title: payload.title,
+              body: payload.body,
+              icon:
+                "/icons/pawu-v903-192.png",
+              badge:
+                "/icons/pawu-v903-192.png",
+              tag:
+                payload.tag ??
+                "pawu-chat-message",
+              renotify: true,
+              vibrate: [250, 100, 250],
+              data: {
+                url: payload.url,
+              },
+            },
+            fcm_options: {
+              link: payload.url,
             },
           },
         },

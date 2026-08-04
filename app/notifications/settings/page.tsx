@@ -1,185 +1,132 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-
-declare global {
-  interface Window {
-    firebase?: {
-      apps: unknown[];
-      initializeApp: (config: Record<string, string>) => unknown;
-      messaging: () => {
-        getToken: (options: { vapidKey: string; serviceWorkerRegistration: ServiceWorkerRegistration }) => Promise<string>;
-        deleteToken?: (token: string) => Promise<boolean>;
-      };
-    };
-  }
-}
-
-const labels: Array<[string, string, string]> = [
-  ["reservation_updates", "예약 알림", "예약 승인, 변경, 취소 상태를 받습니다."],
-  ["chat_messages", "채팅 알림", "병원이나 보호자의 새 메시지를 받습니다."],
-  ["medical_updates", "진료기록 알림", "진료 완료와 건강수첩 갱신을 받습니다."],
-  ["medication_reminders", "복약 알림", "등록된 약 복용 시간을 안내합니다."],
-  ["vaccination_reminders", "예방접종 알림", "예정된 예방접종 시기를 안내합니다."],
-  ["marketing", "마케팅 알림", "PAWU 이벤트와 혜택을 받습니다."],
-];
-
-function loadScript(src: string) {
-  return new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement | null;
-    if (existing) {
-      if (existing.dataset.loaded === "true") resolve();
-      else existing.addEventListener("load", () => resolve(), { once: true });
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = src;
-    script.async = true;
-    script.addEventListener("load", () => { script.dataset.loaded = "true"; resolve(); }, { once: true });
-    script.addEventListener("error", () => reject(new Error("Firebase SDK를 불러오지 못했습니다.")), { once: true });
-    document.head.appendChild(script);
-  });
-}
+import {
+  connectGuardianPush,
+  disconnectGuardianPush,
+  getPushRegistrationStatus,
+  type PushStage,
+} from "@/lib/push/client";
 
 export default function NotificationSettingsPage() {
-  const [prefs, setPrefs] = useState<Record<string, boolean>>({});
-  const [message, setMessage] = useState("");
-  const [working, setWorking] = useState(false);
-  const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
-  const [registered, setRegistered] = useState(false);
+  const [registered, setRegistered] =
+    useState(false);
+  const [working, setWorking] =
+    useState(false);
+  const [message, setMessage] =
+    useState("");
+  const [stage, setStage] =
+    useState<PushStage>("idle");
 
-  async function getToken() {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? "";
+  async function refresh() {
+    const status =
+      await getPushRegistrationStatus();
+    setRegistered(status.registered);
   }
 
   useEffect(() => {
-    setPermission(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
-    async function load() {
-      const token = await getToken();
-      if (!token) return;
-      const headers = { authorization: `Bearer ${token}` };
-      const [preferencesResponse, registrationResponse] = await Promise.all([
-        fetch("/api/notifications/preferences", { headers }),
-        fetch("/api/push/register", { headers, cache: "no-store" }),
-      ]);
-      const preferencesResult = await preferencesResponse.json().catch(() => ({}));
-      const registrationResult = await registrationResponse.json().catch(() => ({}));
-      setPrefs(preferencesResult.preferences ?? {});
-      setRegistered(Boolean(registrationResponse.ok && registrationResult.registered));
-    }
-    void load();
+    void refresh();
   }, []);
 
-  async function enableBrowserNotification() {
+  async function connect(resetToken = false) {
     setWorking(true);
     setMessage("");
-    try {
-      if (typeof Notification === "undefined" || !("serviceWorker" in navigator)) {
-        throw new Error("이 기기에서는 푸시 알림을 지원하지 않습니다.");
-      }
 
-      const next = await Notification.requestPermission();
-      setPermission(next);
-      if (next !== "granted") throw new Error("휴대폰 설정에서 PAWU 알림 권한을 허용해 주세요.");
+    const result = await connectGuardianPush({
+      requestPermission: true,
+      resetToken,
+      onStage(nextStage, nextMessage) {
+        setStage(nextStage);
+        setMessage(nextMessage);
+      },
+    });
 
-      const [configResponse] = await Promise.all([
-        fetch("/api/push/config", { cache: "no-store" }),
-        loadScript("https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"),
-        loadScript("https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"),
-      ]);
-      const configResult = await configResponse.json();
-      if (!configResult.clientReady) {
-        throw new Error(`Firebase 웹 설정이 부족합니다: ${(configResult.missingClientEnv ?? []).join(", ")}`);
-      }
-      if (!configResult.serverReady) {
-        throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON이 아직 설정되지 않았습니다.");
-      }
-      if (!window.firebase) throw new Error("Firebase SDK 초기화에 실패했습니다.");
-
-      if (!window.firebase.apps.length) window.firebase.initializeApp(configResult.config);
-      const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" });
-      await navigator.serviceWorker.ready;
-      const fcmToken = await window.firebase.messaging().getToken({
-        vapidKey: configResult.config.vapidKey,
-        serviceWorkerRegistration: registration,
-      });
-      if (!fcmToken) throw new Error("휴대폰 푸시 토큰을 발급하지 못했습니다.");
-
-      const authToken = await getToken();
-      const saveResponse = await fetch("/api/push/register", {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${authToken}` },
-        body: JSON.stringify({ token: fcmToken, deviceName: navigator.userAgent }),
-      });
-      const saveResult = await saveResponse.json().catch(() => ({}));
-      if (!saveResponse.ok) throw new Error(saveResult.message ?? "푸시 토큰을 저장하지 못했습니다.");
-      setRegistered(true);
-
-      const nextPrefs = { ...prefs, browser_push: true, chat_messages: true };
-      setPrefs(nextPrefs);
-      await fetch("/api/notifications/preferences", {
-        method: "PUT",
-        headers: { "content-type": "application/json", authorization: `Bearer ${authToken}` },
-        body: JSON.stringify(nextPrefs),
-      });
-      setMessage("휴대폰 푸시 알림이 연결되었습니다. 앱을 닫아도 병원 채팅 알림이 소리와 진동으로 표시됩니다.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "푸시 알림 연결에 실패했습니다.");
-    } finally {
-      setWorking(false);
-    }
+    setStage(result.stage);
+    setMessage(result.message);
+    setWorking(false);
+    await refresh();
   }
 
-  async function save() {
-    const token = await getToken();
-    if (!token) return;
-    const response = await fetch("/api/notifications/preferences", {
-      method: "PUT",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify(prefs),
-    });
-    setMessage(response.ok ? "알림 설정을 저장했습니다." : "설정을 저장하지 못했습니다.");
+  async function disconnect() {
+    setWorking(true);
+    await disconnectGuardianPush();
+    await refresh();
+    setMessage(
+      "이 기기의 푸시 알림 연결을 해제했습니다.",
+    );
+    setWorking(false);
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 px-5 py-8 text-black">
-      <div className="mx-auto max-w-2xl">
-        <Link href="/notifications" className="rounded-xl border bg-white px-4 py-2 text-sm">← 알림센터</Link>
-        <h1 className="mt-8 text-3xl font-black">알림 설정</h1>
+    <main className="mx-auto min-h-screen max-w-2xl bg-white px-5 py-8">
+      <h1 className="text-2xl font-black text-[#153f34]">
+        알림 설정
+      </h1>
 
-        <section className="mt-6 rounded-3xl border bg-white p-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <strong>휴대폰 푸시 알림</strong>
-              <p className="mt-1 text-sm text-gray-500">
-                현재 상태: {registered ? "푸시 토큰 등록됨" : permission === "granted" ? "권한은 허용됐지만 토큰 미등록" : permission === "denied" ? "차단됨" : permission === "unsupported" ? "지원하지 않음" : "연결 전"}
-              </p>
-              <p className="mt-2 text-xs leading-5 text-gray-500">
-                로그인 후 알림 권한이 허용되어 있으면 토큰은 자동으로 등록됩니다.
-                연결이 풀린 경우 아래 버튼으로 즉시 재발급할 수 있습니다.
-              </p>
-            </div>
-            <button type="button" disabled={working} onClick={() => void enableBrowserNotification()} className="rounded-2xl bg-[#153f34] px-5 py-3 font-bold text-white disabled:opacity-50">
-              {working ? "연결 중..." : registered ? "푸시 다시 연결" : "푸시 알림 연결"}
-            </button>
+      <section className="mt-6 rounded-3xl border border-slate-200 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-black">
+              휴대폰 푸시 알림
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              앱을 닫아도 병원 채팅과 주요 알림을 받습니다.
+            </p>
           </div>
-        </section>
 
-        <div className="mt-4 space-y-3">
-          {labels.map(([key, title, description]) => (
-            <label key={key} className="flex cursor-pointer items-center justify-between gap-5 rounded-3xl border bg-white p-5">
-              <div><strong>{title}</strong><p className="mt-1 text-sm text-gray-500">{description}</p></div>
-              <input type="checkbox" checked={prefs[key] ?? false} onChange={(event) => setPrefs((current) => ({ ...current, [key]: event.target.checked }))} className="h-5 w-5" />
-            </label>
-          ))}
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-bold ${
+              registered
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {registered ? "연결됨" : "연결 안 됨"}
+          </span>
         </div>
 
-        {message && <p className="mt-5 rounded-xl bg-white p-4 text-sm leading-6">{message}</p>}
-        <button onClick={() => void save()} className="mt-5 w-full rounded-2xl bg-black p-4 font-bold text-white">설정 저장</button>
-      </div>
+        {message && (
+          <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-sm leading-6">
+            <strong>{stage}</strong>
+            <p>{message}</p>
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={working}
+            onClick={() => void connect(false)}
+            className="rounded-2xl bg-[#153f34] px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {working
+              ? "처리 중..."
+              : registered
+                ? "연결 확인"
+                : "알림 허용 및 연결"}
+          </button>
+
+          <button
+            type="button"
+            disabled={working}
+            onClick={() => void connect(true)}
+            className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 disabled:opacity-50"
+          >
+            토큰 초기화 후 재연결
+          </button>
+
+          {registered && (
+            <button
+              type="button"
+              disabled={working}
+              onClick={() => void disconnect()}
+              className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-bold"
+            >
+              연결 해제
+            </button>
+          )}
+        </div>
+      </section>
     </main>
   );
 }

@@ -129,3 +129,16 @@
 - Fix: 채팅 증분 조회 API가 없어 양방향 메시지가 실시간 수신되지 않던 문제 수정
 - Fix: 전송 API가 `messageId`만 반환해 Optimistic UI가 동기화되지 않던 문제 수정
 - Improve: 채팅 API 응답 캐시 방지
+
+
+## V13.0.0
+- Rebuild: 보호자 푸시 등록 시스템을 Firebase npm SDK 기반으로 전면 재구축
+- Fix: 권한 허용 후 연결창이 멈추고 fcm_tokens가 생성되지 않던 문제 대응
+- Fix: 중복 서비스 워커 충돌 제거
+- Improve: 단계별 상태·오류 표시 및 토큰 초기화 기능
+- Improve: 앱 종료 상태 notification payload 발송
+
+
+## V13.0.1
+- Fix: Firebase onMessage Unsubscribe 반환 타입과 cleanup 함수 타입 불일치 수정
+- Build: PushNotificationManager cleanup을 optional function으로 안전하게 처리
